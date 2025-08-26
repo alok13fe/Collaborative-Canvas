@@ -1,0 +1,41 @@
+name: Build and Deploy on AWS
+on: 
+  push:
+    branches:
+     - main
+
+jobs:
+  build-on-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push to Docker Image
+        uses: docker/build-push-action@v6
+        with: 
+          context: .
+          file: ./docker/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/excalidrawclone-frontend:${{ github.sha }}
+      
+      - name: Verify Pushed Image
+        run: docker pull ${{ secrets.DOCKER_USERNAME }}/excalidrawclone-frontend:${{ github.sha }}
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1
+        with: 
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: | 
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/excalidrawclone-frontend:${{ github.sha }}
+            sudo docker stop excalidrawclone-frontend || true
+            sudo docker rm excalidrawclone-frontend || true
+            sudo docker run -d --name excalidrawclone-frontend -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/excalidrawclone-frontend:${{ github.sha }}
