@@ -4,6 +4,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "build:excalidraw": "cd apps/excalidraw-frontend && pnpm build",
     "start:excalidraw": "cd apps/excalidraw-frontend && pnpm start",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
