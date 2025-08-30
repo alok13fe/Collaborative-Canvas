@@ -1,3 +1,4 @@
+import { Shape } from '@/types';
 import { createSlice } from '@reduxjs/toolkit'
 import type { PayloadAction } from '@reduxjs/toolkit'
 
@@ -5,12 +6,18 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 interface BoardState {
   selectedTool: number;
   lockTool: boolean;
+  existingShapes: Shape[],
+  totalShapes: number,
+  isCollaborating: boolean
 }
 
 // Define the initial state using that type
 const initialState: BoardState = {
   selectedTool: 1,
-  lockTool: false
+  lockTool: false,
+  existingShapes: [],
+  totalShapes: 0,
+  isCollaborating: false
 }
 
 export const boardSlice = createSlice({
@@ -22,6 +29,18 @@ export const boardSlice = createSlice({
     },
     toggleLockTool: (state) => {
       state.lockTool = !state.lockTool;
+    },
+    addShape: (state, action) => {
+      state.existingShapes.push({...action.payload, id: state.totalShapes});
+      state.totalShapes += 1;
+    },
+    modifyShape: (state, action) => {
+      const shapeId = action.payload.id;
+      const newShape = '';
+      
+    },
+    deleteShape: (state, action) => {
+      state.existingShapes = state.existingShapes.filter((shape) => !action.payload.includes(shape.id));
     }
   },
 })
