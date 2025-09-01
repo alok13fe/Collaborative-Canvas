@@ -4,6 +4,7 @@ import { registerSchema, loginSchema, googleUserSchema } from "@repo/common/sche
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { uploadOnCloudinary } from '../utils/cloudinary';
 
 export async function registerUser(req: Request, res: Response){
   try {
@@ -306,4 +307,53 @@ export async function userProfile (req: Request, res: Response){
     },
     message: 'User Profile Fetched Successfully!'
   });
+}
+
+export async function uploadImage(req: Request, res: Response){
+  try{
+    const imageLocalPath = req.file?.path;
+
+    if(!imageLocalPath){
+      res
+      .status(400)
+      .json({
+        success: false,
+        message: "Image Input is required."
+      });
+      return;
+    }
+
+    let image = await uploadOnCloudinary(imageLocalPath);
+
+    if(!image || !image.url){
+      res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to upload profile image. Please try again."
+      });
+      return;
+    }
+
+    res
+    .status(200)
+    .json({
+      success: true,
+      data: {
+        width: image.width,
+        height: image.height,
+        url: image.url
+      },
+      message: "Image updated successfully.",
+    });
+  } catch(error){
+    console.log(error);
+    res
+    .status(500)
+    .json({
+      success: true,
+      message: "Server error: Couldn't upload Image at this time.",
+      error
+    });
+  }
 }
