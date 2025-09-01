@@ -1,4 +1,4 @@
-import { Shape } from '@/types';
+import { Shape } from '@repo/common/shapes';
 import { createSlice } from '@reduxjs/toolkit'
 import type { PayloadAction } from '@reduxjs/toolkit'
 

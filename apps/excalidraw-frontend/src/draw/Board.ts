@@ -1,5 +1,5 @@
 import type { AppDispatch } from "@/lib/store";
-import { Rectangle, Diamond, Ellipse, Text, Shape, CornerHandle, BodyHandle, LineHandle, Handle, AnchorPoint, ControlPoint, RotationHandle, SideHandle } from "@/types";
+import type { Rectangle, Diamond, Ellipse, Text, Image, Shape, CornerHandle, BodyHandle, LineHandle, Handle, AnchorPoint, ControlPoint, RotationHandle, SideHandle } from "@repo/common/shapes";
 import { addShape, modifyShape, modifyShapes, clearSelection, selectShape, deleteShapes } from "@/lib/features/board/boardSlice";
 
 export class Board {
@@ -98,7 +98,13 @@ export class Board {
         else {
           if(this.shiftKeyDown){
             shapes.map(shape => {
-              if(this.isPointOnShape(e.clientX, e.clientY, shape)){
+              if(shape.type === 'text' || shape.type === 'image'){
+                if(this.isPointInRectangle(e.clientX, e.clientY, shape)){
+                  this.dispatch(clearSelection());
+                  this.dispatch(selectShape(shape.id));
+                }
+              }
+              else if(this.isPointOnShape(e.clientX, e.clientY, shape)){
                 this.dispatch(selectShape(shape.id));
               }
             });
@@ -110,7 +116,7 @@ export class Board {
       }
       else {
         shapes.map(shape => {
-          if(shape.type === 'text'){
+          if(shape.type === 'text' || shape.type === 'image'){
             if(this.isPointInRectangle(e.clientX, e.clientY, shape)){
               this.dispatch(clearSelection());
               this.dispatch(selectShape(shape.id));
@@ -136,6 +142,7 @@ export class Board {
         if(selectedShapes.length === 0){
           this.ctx.strokeStyle = "rgb(96, 80, 220)";
           this.ctx.fillStyle = "rgba(204, 204, 255, 0.20)";
+          this.ctx.lineWidth = 1;
           this.ctx.strokeRect(this.startX + 0.5, this.startY + 0.5, e.clientX - this.startX, e.clientY - this.startY);
           this.ctx.fillRect(this.startX + 0.5, this.startY + 0.5, e.clientX - this.startX, e.clientY - this.startY);
         }
@@ -721,6 +728,7 @@ export class Board {
                   case "rect":
                   case "diamond":
                   case "text":
+                  case "image":
                     shapeToModify.startX += dx;
                     shapeToModify.startY += dy;
                     break;
@@ -759,6 +767,7 @@ export class Board {
                   case "rect":
                   case "diamond":
                   case "text":
+                  case "image":
                     shapeToModify.startX += dx;
                     shapeToModify.startY += dy;
                     break;
@@ -1186,7 +1195,7 @@ export class Board {
     };
   }
 
-  private isPointInRectangle(pointX: number, pointY: number, rect: {startX: number, startY: number, width: number, height: number} | Rectangle | Diamond | Text | BodyHandle | CornerHandle) {
+  private isPointInRectangle(pointX: number, pointY: number, rect: {startX: number, startY: number, width: number, height: number} | Rectangle | Diamond | Text | Image | BodyHandle | CornerHandle) {
     const left = Math.min(rect.startX, rect.startX + rect.width);
     const right = Math.max(rect.startX, rect.startX + rect.width);
     const top = Math.min(rect.startY, rect.startY + rect.height);
@@ -1318,6 +1327,7 @@ export class Board {
         case "rect":
         case "diamond":
         case "text":
+        case "image":
           isContained = this.isPointInRectangle(shape.startX, shape.startY, rect) && this.isPointInRectangle(shape.startX + shape.width, shape.startY + shape.height, rect);
           break;
         case "ellipse":
@@ -1373,23 +1383,10 @@ export class Board {
         type: 'text',
         startX,
         startY,
-        width,
+        width: minWidth,
         minWidth,
         height,
         text
-      })
-    );
-  }
-
-  public addImage(startX: number, startY: number, url: string){
-    this.dispatch(
-      addShape({
-        type: 'image',
-        startX,
-        startY,
-        // width,
-        // height,
-        url
       })
     );
   }
@@ -1506,7 +1503,14 @@ export class Board {
           this.ctx.fillText(lines[i], shape.startX, shape.startY + lineHeight * (i + 1));
         }
         break;
-    }
+      case 'image':
+        const myImage = new Image();
+        myImage.src = shape.url;
+
+        myImage.onload = () => {
+          this.ctx.drawImage(myImage, shape.startX, shape.startY, shape.width, shape.height);
+        }
+      }
   }
 
   private getHandles(shapes: Shape[]){
@@ -1516,7 +1520,7 @@ export class Board {
     const handles: Handle[] = [];
 
     if(shapes.length === 1){
-      if (shapes[0].type === 'rect' || shapes[0].type === 'diamond' || shapes[0].type === 'text') {
+      if (shapes[0].type === 'rect' || shapes[0].type === 'diamond' || shapes[0].type === 'text' || shapes[0].type === 'image') {
         const { startX, startY, width, height } = shapes[0];
 
         /* Corner Handles */
@@ -1647,7 +1651,7 @@ export class Board {
       let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
 
       shapes.map((shape) => {
-        if (shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'text') {
+        if (shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'text' || shape.type === 'image') {
           const { startX, startY, width, height } = shape;
           
           handles.push({ startX: startX - handleSize / 2, startY: startY - handleSize / 2, width: width + handleSize , height: height + handleSize, type: 'body' });

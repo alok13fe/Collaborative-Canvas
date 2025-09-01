@@ -1,19 +1,97 @@
 "use client";
-import { useState } from 'react';
-import { useAppSelector, useAppDispatch} from '../lib/hooks';
-import { changeSelectedTool, toggleLockTool } from '@/lib/features/board/boardSlice';
+import { useEffect, useState } from 'react';
+import { useAppSelector, useAppDispatch} from '@/lib/hooks';
+import { changeSelectedTool, addShape, toggleLockTool } from '@/lib/features/board/boardSlice';
 import AuthContainer from './AuthContainer';
+import axios from 'axios';
+import { Image } from '@repo/common/shapes';
+import { useRouter, usePathname } from 'next/navigation';
 
 export default function Navbar() {
 
   const dispatch = useAppDispatch();
+  const router = useRouter();
+  const pathname = usePathname();
   
   const [menuOpen, setMenuOpen] = useState(false);
   const [authContainer, setAuthContainer] = useState<boolean>(false);
   const [route, setRoute] = useState<string>('login');
-
+  const [loading, setLoading] = useState(false);
   const { profile } = useAppSelector(state => state.user);
-  const { selectedTool, lockTool } = useAppSelector(state => state.board);
+  const { selectedTool, lockTool, totalShapes } = useAppSelector(state => state.board);
+  
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>){
+    const files = e.target.files;
+    if(files && files.length > 0){
+      const fileSize = parseInt(((files[0].size / 1024) / 1024).toFixed(4));
+
+      if(fileSize > 5){
+        console.log(`File must be atmost 5 MB long`);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image', files[0]);
+
+      axios.post(`${process.env.NEXT_PUBLIC_BASE_URL}/user/upload-image`, formData)
+      .then((response) => {
+        let { width, height } = response.data.data;
+        
+        if(width >= 500){
+          height = (height / width) * 500;
+          width = 500;
+        }
+
+        if(height >= 500){
+          width = (width / height) * 500;
+          height = 500;
+        }
+
+        const image: Image = {
+          id: totalShapes,
+          type: 'image',
+          startX: 50,
+          startY: 50,
+          width: width,
+          height: height,
+          url: response.data.data.url
+        }
+
+        dispatch(addShape(image));
+        console.log('Image Added Successfully');
+      })
+      .catch((error) => {
+        console.log(error);
+      })
+    }
+  }
+
+  async function createRoom(){
+    setLoading(true);
+
+    try {
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/room/create`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      )
+      router.push(`/room/${response.data.data.roomId}`);
+    } catch (error) {
+      console.log(error);
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    if(pathname.startsWith('/room') && profile === null){
+      setAuthContainer(true);
+    }
+  },[pathname, profile]);
 
   return (
     <>
@@ -121,13 +199,20 @@ export default function Navbar() {
                   <path d="M12 3V21M9 21H15M19 6V3H5V6" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <div className='p-2.5 cursor-pointer hover:bg-gray-200 rounded'>
+              <label className='p-2.5 cursor-pointer hover:bg-gray-200 rounded'>
+                <input 
+                  type='file' 
+                  accept='image/*' 
+                  onChange={handleImageChange}
+                  hidden
+                />
+
                 <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path fillRule="evenodd" clipRule="evenodd" d="M23 4C23 2.34315 21.6569 1 20 1H4C2.34315 1 1 2.34315 1 4V20C1 21.6569 2.34315 23 4 23H20C21.6569 23 23 21.6569 23 20V4ZM21 4C21 3.44772 20.5523 3 20 3H4C3.44772 3 3 3.44772 3 4V20C3 20.5523 3.44772 21 4 21H20C20.5523 21 21 20.5523 21 20V4Z" fill="#0F0F0F"/>
                   <path d="M4.80665 17.5211L9.1221 9.60947C9.50112 8.91461 10.4989 8.91461 10.8779 9.60947L14.0465 15.4186L15.1318 13.5194C15.5157 12.8476 16.4843 12.8476 16.8682 13.5194L19.1451 17.5039C19.526 18.1705 19.0446 19 18.2768 19H5.68454C4.92548 19 4.44317 18.1875 4.80665 17.5211Z" fill="#0F0F0F"/>
                   <path d="M18 8C18 9.10457 17.1046 10 16 10C14.8954 10 14 9.10457 14 8C14 6.89543 14.8954 6 16 6C17.1046 6 18 6.89543 18 8Z" fill="#0F0F0F"/>
                 </svg>
-              </div>
+              </label>
               <div 
                 className={`p-2.5 cursor-pointer hover:bg-gray-200 rounded ${selectedTool === 0 ? 'bg-gray-200' : ''}`}
                 onClick={() => { dispatch(changeSelectedTool(0)) }}
@@ -156,17 +241,36 @@ export default function Navbar() {
           </div>
           
           <div className='bg-white pointer-events-auto hidden md:block'>
-            <button className='px-3 py-1.5 flex items-center gap-1 cursor-pointer select-none border-2 rounded'>
-              <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M15.6311 7.15517C15.9018 7.05482 16.1945 7 16.5001 7C17.8808 7 19.0001 8.11929 19.0001 9.5C19.0001 10.8807 17.8808 12 16.5001 12C16.1945 12 15.9018 11.9452 15.6311 11.8448" stroke="#323232" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M3 19C3.69137 16.6928 5.46998 16 9.5 16C13.53 16 15.3086 16.6928 16 19" stroke="#323232" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M17 15C19.403 15.095 20.5292 15.6383 21 17" stroke="#323232" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M13 9.5C13 11.433 11.433 13 9.5 13C7.567 13 6 11.433 6 9.5C6 7.567 7.567 6 9.5 6C11.433 6 13 7.567 13 9.5Z" stroke="#323232" strokeWidth="2"/>
-              </svg>
-              <span className='text-sm font-semibold'>
-                Collaborate
-              </span>
-            </button>
+            {
+              pathname.startsWith('/room')
+              ?
+              <button
+                className='px-3 py-1.5 flex items-center gap-1 cursor-pointer select-none border-red-600 border-2 rounded'
+                onClick={() => { router.push('/') }}
+              >
+                <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="10" stroke="#E7000B" strokeWidth="1.5"/>
+                  <path d="M8 12C8 10.1144 8 9.17157 8.58579 8.58579C9.17157 8 10.1144 8 12 8C13.8856 8 14.8284 8 15.4142 8.58579C16 9.17157 16 10.1144 16 12C16 13.8856 16 14.8284 15.4142 15.4142C14.8284 16 13.8856 16 12 16C10.1144 16 9.17157 16 8.58579 15.4142C8 14.8284 8 13.8856 8 12Z" stroke="#E7000B" strokeWidth="1.5"/>
+                </svg>
+                <span className='text-sm text-red-600 font-semibold'>Stop</span>
+              </button>
+              :
+              <button 
+                className='px-3 py-1.5 flex items-center gap-1 cursor-pointer select-none border-2 rounded'
+                onClick={createRoom}
+                disabled={loading}
+              >
+                <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M15.6311 7.15517C15.9018 7.05482 16.1945 7 16.5001 7C17.8808 7 19.0001 8.11929 19.0001 9.5C19.0001 10.8807 17.8808 12 16.5001 12C16.1945 12 15.9018 11.9452 15.6311 11.8448" stroke="#323232" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M3 19C3.69137 16.6928 5.46998 16 9.5 16C13.53 16 15.3086 16.6928 16 19" stroke="#323232" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M17 15C19.403 15.095 20.5292 15.6383 21 17" stroke="#323232" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M13 9.5C13 11.433 11.433 13 9.5 13C7.567 13 6 11.433 6 9.5C6 7.567 7.567 6 9.5 6C11.433 6 13 7.567 13 9.5Z" stroke="#323232" strokeWidth="2"/>
+                </svg>
+                <span className='text-sm font-semibold'>
+                  Collaborate
+                </span>
+              </button>
+            }
           </div>
         </div>
       </nav>

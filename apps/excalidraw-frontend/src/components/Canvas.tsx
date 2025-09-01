@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '@/lib/hooks';
 import { Board } from '@/draw/Board';
 import { addShape, deleteShapes, clearSelection, changeSelectedTool } from '@/lib/features/board/boardSlice';
-import { Shape } from '@/types';
+import { Shape } from '@repo/common/shapes';
 
 export default function Canvas() {
 
