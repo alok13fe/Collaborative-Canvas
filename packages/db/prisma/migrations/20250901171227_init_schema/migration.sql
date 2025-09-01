@@ -20,13 +20,14 @@ CREATE TABLE "public"."Room" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."Chat" (
+CREATE TABLE "public"."Shape" (
     "id" SERIAL NOT NULL,
     "roomId" INTEGER NOT NULL,
-    "message" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "properties" JSONB NOT NULL,
     "userId" INTEGER NOT NULL,
 
-    CONSTRAINT "Chat_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Shape_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -39,7 +40,7 @@ CREATE UNIQUE INDEX "Room_slug_key" ON "public"."Room"("slug");
 ALTER TABLE "public"."Room" ADD CONSTRAINT "Room_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Chat" ADD CONSTRAINT "Chat_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."Shape" ADD CONSTRAINT "Shape_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Chat" ADD CONSTRAINT "Chat_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "public"."Room"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."Shape" ADD CONSTRAINT "Shape_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "public"."Room"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

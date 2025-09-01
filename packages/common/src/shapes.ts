@@ -62,7 +62,16 @@ export interface Text extends BaseShape {
   text: string
 }
 
-export type Shape = Rectangle | Diamond | Ellipse | Arrow | Line | PencilPath | Text;
+export interface Image extends BaseShape {
+  type: 'image',
+  startX: number,
+  startY: number,
+  width: number,
+  height: number,
+  url: string
+}
+
+export type Shape = Rectangle | Diamond | Ellipse | Arrow | Line | PencilPath | Text | Image;
 
 
 

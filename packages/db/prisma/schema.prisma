@@ -14,22 +14,23 @@ model User {
   email         String         @unique
   password      String
   rooms         Room[]
-  chats         Chat[]
+  shapes        Shape[]
 }
 
 model Room {
   id            Int            @id @default(autoincrement())
   slug          String         @unique
   adminId       Int
-  chats         Chat[]
+  shapes        Shape[]
   createdAt     DateTime       @default(now())
   admin         User           @relation(fields: [adminId], references: id)
 }
 
-model Chat {
+model Shape {
   id            Int            @id @default(autoincrement())
   roomId        Int
-  message       String
+  type          String
+  properties    Json
   userId        Int
   user          User           @relation(fields: [userId], references: id)
   room          Room           @relation(fields: [roomId], references: id)
