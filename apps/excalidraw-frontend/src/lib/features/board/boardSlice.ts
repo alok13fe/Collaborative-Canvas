@@ -7,8 +7,7 @@ interface BoardState {
   selectedTool: number;
   lockTool: boolean;
   existingShapes: Shape[],
-  totalShapes: number,
-  selectedShapes: number[],
+  selectedShapes: string[],
   isCollaborating: boolean
 }
 
@@ -17,7 +16,6 @@ const initialState: BoardState = {
   selectedTool: 1,
   lockTool: false,
   existingShapes: [],
-  totalShapes: 0,
   selectedShapes: [],
   isCollaborating: false
 }
@@ -34,13 +32,15 @@ export const boardSlice = createSlice({
       state.lockTool = !state.lockTool;
     },
     addShape: (state, action) => {
-      state.existingShapes.push({...action.payload, id: state.totalShapes});
-      state.totalShapes += 1;
+      state.existingShapes.push(action.payload);
       
       if(!state.lockTool && state.selectedTool !== 7){
         state.selectedTool = 1;
-        state.selectedShapes = [state.totalShapes - 1];
+          state.selectedShapes = [action.payload.id];
       }
+    },
+    addRemoteShape: (state, action) => {
+      state.existingShapes.push(action.payload);
     },
     modifyShape: (state, action) => {
       const updatedShape = action.payload;
@@ -70,9 +70,19 @@ export const boardSlice = createSlice({
     },
     selectShape: (state, action) => {
       state.selectedShapes = [...state.selectedShapes, action.payload];
+    },
+    startCollaborating: (state) => {
+      state.isCollaborating = true;
+      state.existingShapes = [];
+      state.selectedShapes = [];
+    },
+    stopCollaborating: (state) => {
+      state.isCollaborating = false;
+      state.existingShapes = [];
+      state.selectedShapes = [];
     }
   },
 })
 
-export const { changeSelectedTool, toggleLockTool, addShape, modifyShape, modifyShapes, deleteShapes, clearSelection, selectShape } = boardSlice.actions
+export const { changeSelectedTool, toggleLockTool, addShape, addRemoteShape, modifyShape, modifyShapes, deleteShapes, clearSelection, selectShape, startCollaborating, stopCollaborating } = boardSlice.actions
 export default boardSlice.reducer

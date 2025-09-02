@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch} from '@/lib/hooks';
-import { changeSelectedTool, addShape, toggleLockTool } from '@/lib/features/board/boardSlice';
+import { changeSelectedTool, addShape, toggleLockTool, stopCollaborating } from '@/lib/features/board/boardSlice';
 import AuthContainer from './AuthContainer';
 import axios from 'axios';
 import { Image } from '@repo/common/shapes';
 import { useRouter, usePathname } from 'next/navigation';
+import { nanoid } from 'nanoid';
 
 export default function Navbar() {
 
@@ -18,7 +19,7 @@ export default function Navbar() {
   const [route, setRoute] = useState<string>('login');
   const [loading, setLoading] = useState(false);
   const { profile } = useAppSelector(state => state.user);
-  const { selectedTool, lockTool, totalShapes } = useAppSelector(state => state.board);
+  const { selectedTool, lockTool } = useAppSelector(state => state.board);
   
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>){
     const files = e.target.files;
@@ -48,7 +49,7 @@ export default function Navbar() {
         }
 
         const image: Image = {
-          id: totalShapes,
+          id: nanoid(),
           type: 'image',
           startX: 50,
           startY: 50,
@@ -87,11 +88,16 @@ export default function Navbar() {
     setLoading(false);
   }
 
+  async function leaveRoom() {
+    dispatch(stopCollaborating());
+    router.push('/');
+  }
+
   useEffect(() => {
-    if(pathname.startsWith('/room') && profile === null){
+    if(pathname.startsWith('/room') && !profile){
       setAuthContainer(true);
     }
-  },[pathname, profile]);
+  },[dispatch, pathname, profile, authContainer]);
 
   return (
     <>
@@ -246,13 +252,9 @@ export default function Navbar() {
               ?
               <button
                 className='px-3 py-1.5 flex items-center gap-1 cursor-pointer select-none border-red-600 border-2 rounded'
-                onClick={() => { router.push('/') }}
+                onClick={leaveRoom}
               >
-                <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10" stroke="#E7000B" strokeWidth="1.5"/>
-                  <path d="M8 12C8 10.1144 8 9.17157 8.58579 8.58579C9.17157 8 10.1144 8 12 8C13.8856 8 14.8284 8 15.4142 8.58579C16 9.17157 16 10.1144 16 12C16 13.8856 16 14.8284 15.4142 15.4142C14.8284 16 13.8856 16 12 16C10.1144 16 9.17157 16 8.58579 15.4142C8 14.8284 8 13.8856 8 12Z" stroke="#E7000B" strokeWidth="1.5"/>
-                </svg>
-                <span className='text-sm text-red-600 font-semibold'>Stop</span>
+                <span className='text-sm text-red-600 font-semibold'>Leave</span>
               </button>
               :
               <button 

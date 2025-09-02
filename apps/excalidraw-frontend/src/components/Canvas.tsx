@@ -4,8 +4,14 @@ import { useAppSelector, useAppDispatch } from '@/lib/hooks';
 import { Board } from '@/draw/Board';
 import { addShape, deleteShapes, clearSelection, changeSelectedTool } from '@/lib/features/board/boardSlice';
 import { Shape } from '@repo/common/shapes';
+import { nanoid } from 'nanoid';
 
-export default function Canvas() {
+interface ICanvas {
+  socket?: WebSocket | null,
+  roomId?: string
+}
+
+export default function Canvas({ socket, roomId }: ICanvas) {
 
   const dispatch = useAppDispatch();
 
@@ -30,6 +36,17 @@ export default function Canvas() {
     else if(e.key === 'Delete'){
       if(selectedShapes.length !== 0){
         dispatch(deleteShapes(selectedShapes));
+        if(socket){
+          selectedShapes.map((shapeId) => {
+            socket.send(JSON.stringify({
+              type: 'delete-shape',
+              payload: {
+                roomId,
+                shapeId
+              }
+            }));
+          });
+        }
       }
     }
     else if(boardInstanceRef.current.controlKeyDown){
@@ -48,6 +65,17 @@ export default function Canvas() {
         navigator.clipboard.writeText(JSON.stringify(shapes));
 
         dispatch(deleteShapes(selectedShapes));
+        if(socket){
+          selectedShapes.map((shapeId) => {
+            socket.send(JSON.stringify({
+              type: 'delete-shape',
+              payload: {
+                roomId,
+                shapeId
+              }
+            }));
+          });
+        }
       }
       else if(e.key === 'v'){
         const shapes = await navigator.clipboard.readText();
@@ -56,18 +84,25 @@ export default function Canvas() {
           dispatch(clearSelection());
 
           selectedShapes.map((shape: Shape) => {
-            dispatch(
-              addShape({
-                ...shape
-              })
-            )
+            const newShape = { ...shape, id: nanoid() }; 
+            dispatch(addShape(newShape));
+            
+            if(socket){
+              socket.send(JSON.stringify({
+                type: 'add-shape',
+                payload: {
+                  roomId,
+                  shape: newShape
+                }
+              }));
+            }
           });
         } catch(err) {
           console.log(err);
         }
       }
     }
-  },[dispatch, existingShapes, selectedShapes]);
+  },[dispatch, existingShapes, selectedShapes, roomId, socket]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     if(!boardInstanceRef.current)  return;
@@ -124,9 +159,14 @@ export default function Canvas() {
   /* Initialize Board */
   useEffect(() => {
     if(canvasRef.current){
-      boardInstanceRef.current = new Board(canvasRef.current, dispatch);      
+      if(socket && roomId){
+        boardInstanceRef.current = new Board(canvasRef.current, dispatch, socket, roomId);      
+      }
+      else{
+        boardInstanceRef.current = new Board(canvasRef.current, dispatch);      
+      }
     }
-  },[dispatch]);
+  },[dispatch, socket, roomId]);
 
   /* Change Selected Tool */
   useEffect(() => {

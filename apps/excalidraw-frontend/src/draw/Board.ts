@@ -1,11 +1,14 @@
 import type { AppDispatch } from "@/lib/store";
 import type { Rectangle, Diamond, Ellipse, Text, Image, Shape, CornerHandle, BodyHandle, LineHandle, Handle, AnchorPoint, ControlPoint, RotationHandle, SideHandle } from "@repo/common/shapes";
-import { addShape, modifyShape, modifyShapes, clearSelection, selectShape, deleteShapes } from "@/lib/features/board/boardSlice";
+import { addShape, modifyShapes, clearSelection, selectShape, deleteShapes } from "@/lib/features/board/boardSlice";
+import { nanoid } from 'nanoid';
 
 export class Board {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private dispatch: AppDispatch; 
+  private roomId: string | null;
+  private socket: WebSocket | null;
 
   private panOffset: {x: number; y: number};
   private selectedTool: number;
@@ -20,7 +23,7 @@ export class Board {
   private originalGroupBounds: {x: number, y: number, width: number, height: number} | null = null;
   private tempPathPoints: { x: number, y: number }[] = [];
 
-  constructor(canvas: HTMLCanvasElement, dispatch: AppDispatch){
+  constructor(canvas: HTMLCanvasElement, dispatch: AppDispatch, socket?: WebSocket, roomId?: string){
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
     this.dispatch = dispatch;
@@ -28,6 +31,8 @@ export class Board {
     canvas.width = 2000;
     canvas.height = 1000;
     
+    this.roomId = roomId || null;
+    this.socket = socket || null;
     this.panOffset = {x: 0, y: 0};
     this.isDrawing = false;
     this.selectedTool = 1;
@@ -60,7 +65,7 @@ export class Board {
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  public handleMouseDown(e: MouseEvent, shapes: Shape[], selectedShapes: number[]){
+  public handleMouseDown(e: MouseEvent, shapes: Shape[], selectedShapes: string[]){
     this.isDrawing = true;
     this.startX = e.clientX;
     this.startY = e.clientY;
@@ -134,7 +139,7 @@ export class Board {
     }
   }
 
-  public handleMouseMove(e: MouseEvent, shapes: Shape[], selectedShapes: number[]){
+  public handleMouseMove(e: MouseEvent, shapes: Shape[], selectedShapes: string[]){
     if(this.isDrawing){
       this.redraw(shapes, selectedShapes);
 
@@ -235,7 +240,7 @@ export class Board {
                   }
                 }
 
-                this.dispatch(modifyShape(shape));
+                this.modifyShapes([shape]);
               }
             }
             else if(this.activeHandle.type === 'top-right'){
@@ -320,7 +325,7 @@ export class Board {
                   }
                 }
 
-                this.dispatch(modifyShape(shape));
+                this.modifyShapes([shape]);
               }
             }
             else if(this.activeHandle.type === 'bottom-right'){
@@ -403,7 +408,7 @@ export class Board {
                   }
                 }
 
-                this.dispatch(modifyShape(shape));
+                this.modifyShapes([shape]);
               }
             }
             else if(this.activeHandle.type === 'bottom-left'){
@@ -488,7 +493,7 @@ export class Board {
                   }
                 }
 
-                this.dispatch(modifyShape(shape));
+                this.modifyShapes([shape]);
               }
             }
             else if(this.activeHandle.type === 'top'){
@@ -551,7 +556,7 @@ export class Board {
                   }
                 }
 
-                this.dispatch(modifyShape(shape));
+                this.modifyShapes([shape]);
               }
             }
             else if(this.activeHandle.type === 'right'){
@@ -603,7 +608,7 @@ export class Board {
                   }
                 }
 
-                this.dispatch(modifyShape(shape));
+                this.modifyShapes([shape]);
               }
             }
             else if(this.activeHandle.type === 'bottom'){
@@ -663,7 +668,7 @@ export class Board {
                   }
                 }
 
-                this.dispatch(modifyShape(shape));
+                this.modifyShapes([shape]);
               }
             }
             else if(this.activeHandle.type === 'left'){
@@ -717,7 +722,7 @@ export class Board {
                   }
                 }
 
-                this.dispatch(modifyShape(shape));
+                this.modifyShapes([shape]);
               }
             }
             else if(this.activeHandle.type === 'selection-body'){
@@ -757,7 +762,7 @@ export class Board {
                 return shapeToModify;
               });
 
-              this.dispatch(modifyShapes(updatedShapes));
+              this.modifyShapes(updatedShapes);
             }
             else if(this.activeHandle.type === 'body'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -796,7 +801,7 @@ export class Board {
                 return shapeToModify;
               });
 
-              this.dispatch(modifyShapes(updatedShapes));
+              this.modifyShapes(updatedShapes);
             }
             else if(this.activeHandle.type === 'line-body'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -818,7 +823,7 @@ export class Board {
                 return shapeToModify;
               });
 
-              this.dispatch(modifyShapes(updatedShapes));
+              this.modifyShapes(updatedShapes);
             }
             else if(this.activeHandle.type === 'anchor-point-start'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -832,7 +837,7 @@ export class Board {
                 }
                 return shapeToModify;
               });
-              this.dispatch(modifyShapes(updatedShapes));
+              this.modifyShapes(updatedShapes);
             }
             else if(this.activeHandle.type === 'anchor-point-end'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -846,7 +851,7 @@ export class Board {
                 }
                 return shapeToModify;
               });
-              this.dispatch(modifyShapes(updatedShapes));
+              this.modifyShapes(updatedShapes);
             }
             else if(this.activeHandle.type === 'control-point'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -868,7 +873,7 @@ export class Board {
                 } 
                   return shapeToModify;
               });
-              this.dispatch(modifyShapes(updatedShapes));
+              this.modifyShapes(updatedShapes);
             }
           }
           
@@ -1065,7 +1070,7 @@ export class Board {
     }
   }
 
-  public handleMouseUp(e: MouseEvent, shapes: Shape[], selectedShapes: number[]){
+  public handleMouseUp(e: MouseEvent, shapes: Shape[], selectedShapes: string[]){
     this.isDrawing = false;
     let newShape: Shape | null = null;
     
@@ -1093,7 +1098,7 @@ export class Board {
       }
 
       newShape = {
-        id: -1,
+        id: 'new-shape',
         type: "rect",
         startX,
         startY,
@@ -1114,7 +1119,7 @@ export class Board {
       }
 
       newShape ={
-        id: -1,
+        id: 'new-shape',
         type: "diamond",
         startX,
         startY,
@@ -1135,7 +1140,7 @@ export class Board {
       }
 
       newShape = {
-        id: -1,
+        id: 'new-shape',
         type: "ellipse",
         centerX: this.startX + radiusX,
         centerY: this.startY + radiusY,
@@ -1145,7 +1150,7 @@ export class Board {
     }
     else if(this.selectedTool === 5){
       newShape = {
-        id: -1,
+        id: 'new-shape',
         type: "arrow",
         startX: this.startX,
         startY: this.startY,
@@ -1155,7 +1160,7 @@ export class Board {
     }
     else if(this.selectedTool === 6){
       newShape = {
-        id: -1,
+        id: 'new-shape',
         type: "line",
         startX: this.startX,
         startY: this.startY,
@@ -1165,7 +1170,7 @@ export class Board {
     }
     else if(this.selectedTool === 7){
       newShape = {
-        id: -1,
+        id: 'new-shape',
         type: 'pencil',
         points: this.tempPathPoints
       }
@@ -1174,7 +1179,19 @@ export class Board {
     }
     
     if(newShape){
+      const shapeId = nanoid();
+      newShape = {...newShape, id: shapeId}
+
       this.dispatch(addShape(newShape));
+      if(this.socket){
+        this.socket.send(JSON.stringify({
+          type: 'add-shape',
+          payload: {
+            roomId: this.roomId,
+            shape: newShape
+          }
+        }));
+      }
     }
   }
 
@@ -1182,6 +1199,22 @@ export class Board {
     this.canvas.style.cursor = (tool === 1) ? 'auto' : (tool === 9) ? 'grab' : 'crosshair';
 
     this.selectedTool = tool;
+  }
+
+  public modifyShapes(shapes: Shape[]){
+    this.dispatch(modifyShapes(shapes));
+
+    shapes.forEach((shape) => {
+      if(this.socket){
+        this.socket.send(JSON.stringify({
+          type: 'modify-shape',
+          payload: {
+            roomId: this.roomId,
+            shape: shape
+          }
+        }));
+      }
+    });
   }
 
   private getBoundingBoxOfShapes(){
@@ -1377,21 +1410,31 @@ export class Board {
       minWidth = Math.max(minWidth, lineWidth);
     }
     
-    this.dispatch(
-      addShape({
-        fontSize: 16,
-        type: 'text',
-        startX,
-        startY,
-        width: minWidth,
-        minWidth,
-        height,
-        text
-      })
-    );
+    const newShape = {
+      id: nanoid(),
+      fontSize: 16,
+      type: 'text',
+      startX,
+      startY,
+      width: minWidth,
+      minWidth,
+      height,
+      text
+    }
+
+    this.dispatch(addShape(newShape));
+    if(this.socket){
+      this.socket.send(JSON.stringify({
+        type: 'add-shape',
+        payload: {
+          roomId: this.roomId,
+          shape: newShape
+        }
+      }));
+    }
   }
 
-  public redraw(shapes: Shape[], selectedShapes: number[]){
+  public redraw(shapes: Shape[], selectedShapes: string[]){
     this.clearCanvas();
 
     this.handles = this.getHandles(shapes.filter(shape => selectedShapes.includes(shape.id)));

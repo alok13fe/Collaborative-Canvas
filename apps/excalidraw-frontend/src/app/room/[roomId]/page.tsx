@@ -1,13 +1,9 @@
-import Canvas from '@/components/Canvas'
-import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
+import { Room } from "@/components/Room";
 
-export default function page({ params }: { params: {slug: string[] }}) {
+export default async function page({ params }: { params: {roomId: string }}) {
+  const roomId = (await params).roomId;
+  
   return (
-    <main>
-      <Navbar />
-      <Canvas />
-      <Footer />
-    </main>
+    <Room roomId={roomId} />
   )
 }
