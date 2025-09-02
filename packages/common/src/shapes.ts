@@ -1,5 +1,5 @@
 interface BaseShape {
-  id: number
+  id: string
 }
 
 export interface Rectangle extends BaseShape {
