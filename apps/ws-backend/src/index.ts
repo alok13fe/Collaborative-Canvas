@@ -11,7 +11,9 @@ const rooms: Record<string, Set<WebSocket>> = {};
 
 const wss = new WebSocketServer({port: 1234});
 
-const client = createClient();
+const client = createClient({
+  url: process.env.REDIS_URL
+});
 client.connect();
 
 

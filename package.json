@@ -4,9 +4,11 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "start:excalidraw": "cd apps/excalidraw-frontend && pnpm start",
+    "start:frontend": "cd apps/frontend && pnpm start",
     "start:http-backend": "cd apps/http-backend && pnpm start",
     "start:ws-backend": "cd apps/ws-backend && pnpm start",
+    "start:worker": "cd apps/worker && pnpm start",
+    "db:generate": "cd packages/db && npx prisma generate",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"

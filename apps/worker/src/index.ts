@@ -4,7 +4,9 @@ dotenv.config();
 import { createClient } from "redis";
 import axios from "axios";
 
-const client = createClient();
+const client = createClient({
+  url: process.env.REDIS_URL
+});
 
 async function main(){
   await client.connect();

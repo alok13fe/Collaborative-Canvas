@@ -1,135 +1,103 @@
-# Turborepo starter
+# **CollabCanvas \- A Real-Time Collaborative Whiteboard**
 
-This Turborepo starter is maintained by the Turborepo core team.
+CollabCanvas is a feature-rich, web-based vector drawing application built with Next.js and TypeScript, inspired by the popular tool Excalidraw. It provides a seamless, real-time collaborative environment for users to sketch ideas, create diagrams, and work together visually.
 
-## Using this example
+## **✨ Key Features**
 
-Run the following command:
+This application was built from the ground up to support a robust and intuitive user experience.
 
-```sh
-npx create-turbo@latest
-```
+#### **🎨 Drawing & Shape Tools**
 
-## What's inside?
+* **Multiple Shape Tools:** Create Rectangles, Ellipses, Diamonds, Arrows, and Lines.  
+* **Freehand Pencil:** A pencil tool with a line-smoothing algorithm to create natural, fluid strokes.  
+* **Text Tool:** Add and edit text directly on the canvas with an auto-resizing text area.  
+* **Eraser Tool:** Easily remove elements from the canvas.
 
-This Turborepo includes the following packages/apps:
+#### **interactive Manipulation**
 
-### Apps and Packages
+* **Advanced Selection:** Select single or multiple shapes using a drag-to-select box.  
+* **Element Transformation:** Move, resize, and rotate elements with intuitive interactive handles.  
+* **Proportional Group Resizing:** Scale multiple selected objects at once while maintaining their relative positions and aspect ratios.  
+* **Curve Editing:** Modify the curve of lines and arrows by dragging a central control point.  
+* **Z-Index Control:** Manage the stacking order of shapes with "Bring to Front" and "Send to Back" commands.
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+#### **🤝 Real-Time Collaboration**
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+* **Room-Based Collaboration:** Create and join unique rooms (/room/\[roomId\]) for shared drawing sessions.  
+* **Live Updates:** All shape creations, modifications, and deletions are broadcast to connected users in real-time using **WebSockets**.  
+* **Persistent Sessions:** User accounts and login states are persisted using **Redux Persist**, ensuring a seamless experience for returning users.
 
-### Utilities
+#### **🛠️ Core Functionality**
 
-This Turborepo has some additional tools already setup for you:
+* **Undo/Redo:** A complete history stack for all actions on the canvas.  
+* **Copy/Paste & Cut:** Full clipboard support using the browser's Clipboard API.  
+* **Pan & Zoom:** Navigate the infinite canvas with ease.  
+* **Save to Server:** All shapes are associated with user accounts and saved to a PostgreSQL database.
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+## **🚀 Tech Stack**
 
-### Build
+The project leverages a modern, type-safe, and scalable technology stack.
 
-To build all apps and packages, run the following command:
+* **Frontend:** [Next.js](https://nextjs.org/), [React](https://reactjs.org/), [TypeScript](https://www.typescriptlang.org/)  
+* **State Management:** [Redux Toolkit](https://redux-toolkit.js.org/) (with Redux Persist for session management)  
+* **Real-Time Communication:** [WebSockets](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)  
+* **Canvas Rendering:** [HTML5 Canvas API](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)  
+* **Backend & Database:** [Prisma](https://www.prisma.io/), [PostgreSQL](https://www.postgresql.org/)  
+* **Deployment:** [Docker](https://www.docker.com/)
 
-```
-cd my-turborepo
+## **🏛️ Project Architecture**
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
+The application is built on a clean separation of concerns, ensuring maintainability and scalability.
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
-```
+1. **Smart Component, Dumb Class:** The core architecture separates the "smart" React Canvas component from a "dumb" Board.ts utility class.  
+   * The **React Component** manages all state by subscribing to the Redux store and handles user events.  
+   * The **Board.ts Class** is a stateless utility that receives state as props and contains all the pure logic for canvas rendering and geometric calculations.  
+2. **Redux as Single Source of Truth:** All application state—from shape data to the currently selected tool—is managed by Redux Toolkit. This provides a predictable, one-way data flow.  
+3. **WebSocket Service:** Real-time communication is handled by a dedicated WebSocket service, which is decoupled from the UI and Redux store. When a local user modifies a shape, an action is dispatched to both the local Redux store (for an instant UI update) and the WebSocket service (to broadcast to other clients).
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+## **🏁 Getting Started**
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+Follow these instructions to get a local copy up and running for development and testing purposes.
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+### **Prerequisites**
 
-### Develop
+* Node.js (v18 or later)  
+* pnpm  
+* Docker (for running a local PostgreSQL instance)
 
-To develop all apps and packages, run the following command:
+### **Installation**
 
-```
-cd my-turborepo
+1. **Clone the repository:**  
+   git clone \[https://github.com/your-username/collabcanvas.git\](https://github.com/your-username/collabcanvas.git)  
+   cd collabcanvas
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
+2. **Install dependencies:**  
+   pnpm install
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
+3. **Set up environment variables:**  
+   cp .env.example .env
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+   *Fill in the .env file with your database credentials and other necessary variables.*  
+4. **Set up the database:**  
+   * Start a PostgreSQL instance using Docker.  
+   * Run Prisma migrations to create the necessary tables:  
+     pnpm db:push
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
+5. **Run the development server:**  
+   pnpm dev
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
+   The application will be available at http://localhost:3000.
 
-### Remote Caching
+## **🐳 Running with Docker**
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+You can also build and run the entire application using the provided multi-stage Dockerfile.
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+1. **Build the Docker image:**  
+   docker build \-t collabcanvas .
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+2. **Run the Docker container:**  
+   docker run \-p 3000:3000 collabcanvas
 
-```
-cd my-turborepo
+## **📜 License**
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+This project is licensed under the MIT License \- see the LICENSE file for details.
