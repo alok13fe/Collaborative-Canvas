@@ -4,11 +4,16 @@ dotenv.config();
 import { WebSocketServer, WebSocket } from 'ws';
 import { prismaClient } from '@repo/db/client';
 import jwt from 'jsonwebtoken';
-import { shapeSchema } from '@repo/common/schema';
+import { createClient } from 'redis';
+import { deleteShapeSchema, shapeSchema } from '@repo/common/schema';
 
 const rooms: Record<string, Set<WebSocket>> = {};
 
 const wss = new WebSocketServer({port: 1234});
+
+const client = createClient();
+client.connect();
+
 
 function authenticateUser(token: string): number | null {
   try {
@@ -42,7 +47,7 @@ function broadcastMessage(roomId: string, message: object, excludeClient?: WebSo
   }
 }
 
-wss.on("connection", function connection(ws, req){
+wss.on("connection", async function connection(ws, req){
   const token = req.url?.split('token=')[1];
 
   if(!token){
@@ -140,6 +145,7 @@ wss.on("connection", function connection(ws, req){
         /* Input Validation */
         shapeSchema.parse(shape);
 
+        await client.lPush("add-shape", JSON.stringify({roomId, shape, token}));
         broadcastMessage(roomId, parsedData, ws);
       } catch (error) {
         ws.send(JSON.stringify({
@@ -157,6 +163,7 @@ wss.on("connection", function connection(ws, req){
         /* Input Validation */
         shapeSchema.parse(shape);
 
+        await client.lPush("modify-shape", JSON.stringify({roomId, shape, token}));
         broadcastMessage(roomId, parsedData, ws);
       } catch (error) {
         ws.send(JSON.stringify({
@@ -171,7 +178,13 @@ wss.on("connection", function connection(ws, req){
       try {
         const { roomId, shapeId } = payload;
 
-
+        /* Input Validation */
+        deleteShapeSchema.parse({
+          roomId,
+          shapeId
+        });
+        
+        await client.lPush("delete-shape", JSON.stringify({roomId, shapeId, token}));
         broadcastMessage(roomId, parsedData, ws);
       } catch (error) {
         ws.send(JSON.stringify({

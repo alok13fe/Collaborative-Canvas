@@ -325,10 +325,10 @@ export async function modifyShape(req: Request, res: Response) {
 
 export async function deleteShape(req: Request, res: Response) {
   try {
-    const { roomId, shapeId } = req.body;
+    const { roomId, shapeId } = req.query;
 
     /* Input Validation */
-    deleteShapeSchema.parse({
+    const parsedData = deleteShapeSchema.parse({
       roomId,
       shapeId
     });
@@ -336,7 +336,7 @@ export async function deleteShape(req: Request, res: Response) {
     /* Check if Room Exists */
     const roomExists = await prismaClient.room.findFirst({
       where: {
-        slug: roomId
+        slug: parsedData.roomId
       }
     });
     
@@ -353,7 +353,7 @@ export async function deleteShape(req: Request, res: Response) {
     /* Check if Shape Exists */
     const shapeExists = await prismaClient.shape.findFirst({
       where: {
-        shapeId,
+        shapeId: parsedData.shapeId,
         roomId: roomExists.id
       }
     });
@@ -381,6 +381,7 @@ export async function deleteShape(req: Request, res: Response) {
       message: 'Shape deleted successfully'
     });
   } catch (error) {
+    console.log(error);
     res
     .status(500)
     .json({
