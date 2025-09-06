@@ -22,6 +22,7 @@ export class Board {
   private activeHandle: { type: string } | null = null;
   private originalGroupBounds: {x: number, y: number, width: number, height: number} | null = null;
   private tempPathPoints: { x: number, y: number }[] = [];
+  private timerId: NodeJS.Timeout | null = null;
 
   constructor(canvas: HTMLCanvasElement, dispatch: AppDispatch, socket?: WebSocket, roomId?: string){
     this.canvas = canvas;
@@ -43,7 +44,7 @@ export class Board {
     this.init();
   }
 
-  async init(){
+  private init(){
     const dpr = window.devicePixelRatio || 1;
     
     const rect = this.canvas.getBoundingClientRect();
@@ -1204,17 +1205,23 @@ export class Board {
   public modifyShapes(shapes: Shape[]){
     this.dispatch(modifyShapes(shapes));
 
-    shapes.forEach((shape) => {
-      if(this.socket){
-        this.socket.send(JSON.stringify({
-          type: 'modify-shape',
-          payload: {
-            roomId: this.roomId,
-            shape: shape
-          }
-        }));
-      }
-    });
+    if(this.timerId){
+      clearTimeout(this.timerId);
+    }
+
+    this.timerId = setTimeout(() => {
+      shapes.forEach((shape) => {
+        if(this.socket){
+          this.socket.send(JSON.stringify({
+            type: 'modify-shape',
+            payload: {
+              roomId: this.roomId,
+              shape: shape
+            }
+          }));
+        }
+      });
+    }, 300);
   }
 
   private getBoundingBoxOfShapes(){

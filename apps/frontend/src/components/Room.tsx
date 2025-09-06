@@ -2,12 +2,12 @@
 import { useEffect, useRef } from "react";
 import { useAppSelector, useAppDispatch } from "@/lib/hooks";
 import { useSocket } from "@/hooks/useSocket";
-import { useRouter } from 'next/navigation';
 import Canvas from '@/components/Canvas'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import axios from 'axios';
 import { addRemoteShape, modifyShape, deleteShapes, startCollaborating } from "@/lib/features/board/boardSlice";
+import { setUserProfile } from "@/lib/features/user/userSlice";
 
 interface IResponse {
   id: number,
@@ -21,7 +21,6 @@ export function Room({roomId}: {
   roomId: string
 }){
   
-  const router = useRouter();
   const dispatch = useAppDispatch();
 
   const initializeRef = useRef(false);
@@ -53,8 +52,9 @@ export function Room({roomId}: {
         });
       }).catch((error) => {
         console.log(error);
-        if(error.response.status === 400){
-          router.push('/');
+        if(error.response.status === 400 || error.response.status === 403){
+          localStorage.removeItem('token');
+          dispatch(setUserProfile(null));
         }
       });
     }
