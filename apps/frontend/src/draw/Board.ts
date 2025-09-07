@@ -66,32 +66,32 @@ export class Board {
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  public handleMouseDown(e: MouseEvent, shapes: Shape[], selectedShapes: string[]){
+  public handleMouseDown(client: {x: number, y: number}, shapes: Shape[], selectedShapes: string[]){
     this.isDrawing = true;
-    this.startX = e.clientX;
-    this.startY = e.clientY;
-    this.previousPosition = {x: e.clientX, y: e.clientY};
+    this.startX = client.x;
+    this.startY = client.y;
+    this.previousPosition = client;
 
     if(this.selectedTool === 1){
       if(this.handles.length !== 0){
         const clickedHandle = this.handles.find((handle) => {
           if(handle.type === 'top-left' || handle.type === 'top-right' || handle.type === 'bottom-left' || handle.type === 'bottom-right'){
-            return this.isPointInRectangle(e.clientX, e.clientY, handle);
+            return this.isPointInRectangle(client.x, client.y, handle);
           }
           else if(handle.type === 'top' || handle.type === 'left' || handle.type === 'bottom' || handle.type === 'right'){
-            return this.isPointOnShape(e.clientX, e.clientY, handle);
+            return this.isPointOnShape(client.x, client.y, handle);
           }
           else if(handle.type === 'rotate' || handle.type === 'anchor-point-start' || handle.type === 'anchor-point-end' || handle.type === 'control-point'){
-            return this.isPointInCircle(e.clientX, e.clientY, handle);
+            return this.isPointInCircle(client.x, client.y, handle);
           }
           else if(handle.type === 'selection-body'){
-            return this.isPointInRectangle(e.clientX, e.clientY, handle);
+            return this.isPointInRectangle(client.x, client.y, handle);
           }
           else if(handle.type === 'body'){
-            return this.isPointInRectangle(e.clientX, e.clientY, handle);
+            return this.isPointInRectangle(client.x, client.y, handle);
           }
           else if(handle.type === 'line-body'){
-            return this.isPointOnShape(e.clientX, e.clientY, handle);
+            return this.isPointOnShape(client.x, client.y, handle);
           }
         });
 
@@ -105,12 +105,12 @@ export class Board {
           if(this.shiftKeyDown){
             shapes.map(shape => {
               if(shape.type === 'text' || shape.type === 'image'){
-                if(this.isPointInRectangle(e.clientX, e.clientY, shape)){
+                if(this.isPointInRectangle(client.x, client.y, shape)){
                   this.dispatch(clearSelection());
                   this.dispatch(selectShape(shape.id));
                 }
               }
-              else if(this.isPointOnShape(e.clientX, e.clientY, shape)){
+              else if(this.isPointOnShape(client.x, client.y, shape)){
                 this.dispatch(selectShape(shape.id));
               }
             });
@@ -123,12 +123,12 @@ export class Board {
       else {
         shapes.map(shape => {
           if(shape.type === 'text' || shape.type === 'image'){
-            if(this.isPointInRectangle(e.clientX, e.clientY, shape)){
+            if(this.isPointInRectangle(client.x, client.y, shape)){
               this.dispatch(clearSelection());
               this.dispatch(selectShape(shape.id));
             }
           }
-          else if(this.isPointOnShape(e.clientX, e.clientY, shape)){
+          else if(this.isPointOnShape(client.x, client.y, shape)){
             this.dispatch(clearSelection());
             this.dispatch(selectShape(shape.id));
           }
@@ -136,11 +136,11 @@ export class Board {
       }
     }
     else if(this.selectedTool === 7){
-      this.tempPathPoints = [{ x: e.clientX, y: e.clientY }];
+      this.tempPathPoints = [{ x: client.x, y: client.y }];
     }
   }
 
-  public handleMouseMove(e: MouseEvent, shapes: Shape[], selectedShapes: string[]){
+  public handleMouseMove(client: {x: number, y: number}, shapes: Shape[], selectedShapes: string[]){
     if(this.isDrawing){
       this.redraw(shapes, selectedShapes);
 
@@ -149,11 +149,11 @@ export class Board {
           this.ctx.strokeStyle = "rgb(96, 80, 220)";
           this.ctx.fillStyle = "rgba(204, 204, 255, 0.20)";
           this.ctx.lineWidth = 1;
-          this.ctx.strokeRect(this.startX + 0.5, this.startY + 0.5, e.clientX - this.startX, e.clientY - this.startY);
-          this.ctx.fillRect(this.startX + 0.5, this.startY + 0.5, e.clientX - this.startX, e.clientY - this.startY);
+          this.ctx.strokeRect(this.startX + 0.5, this.startY + 0.5, client.x - this.startX, client.y - this.startY);
+          this.ctx.fillRect(this.startX + 0.5, this.startY + 0.5, client.x - this.startX, client.y - this.startY);
         }
         else{
-          const dx = e.clientX - this.previousPosition.x, dy = e.clientY - this.previousPosition.y;
+          const dx = client.x - this.previousPosition.x, dy = client.y - this.previousPosition.y;
           const selected: Shape[] = shapes.filter(shape => selectedShapes.includes(shape.id));
 
           if(this.activeHandle){
@@ -878,12 +878,12 @@ export class Board {
             }
           }
           
-          this.previousPosition = {x: e.clientX, y: e.clientY};
+          this.previousPosition = client;
         }
       }
       else if(this.selectedTool === 2){
-        let width = e.clientX - this.startX;
-        let height = e.clientY - this.startY;
+        let width = client.x - this.startX;
+        let height = client.y - this.startY;
 
         if(this.shiftKeyDown){
           const updatedWidth = (width > 0) ? Math.abs(Math.min(width, height)) : -1 * Math.abs(Math.min(width, height));
@@ -898,8 +898,8 @@ export class Board {
         this.ctx.strokeRect(this.startX, this.startY, width, height);
       }
       else if(this.selectedTool === 3){
-        let width = e.clientX - this.startX;
-        let height = e.clientY - this.startY;
+        let width = client.x - this.startX;
+        let height = client.y - this.startY;
 
         if(this.shiftKeyDown){
           const updatedWidth = (width > 0) ? Math.abs(Math.min(width, height)) : -1 * Math.abs(Math.min(width, height));
@@ -924,8 +924,8 @@ export class Board {
         this.ctx.stroke();
       }
       else if(this.selectedTool === 4){
-        let radiusX = Math.floor((e.clientX - this.startX) / 2);
-        let radiusY = Math.floor((e.clientY - this.startY) / 2);
+        let radiusX = Math.floor((client.x - this.startX) / 2);
+        let radiusY = Math.floor((client.y - this.startY) / 2);
 
         if(this.shiftKeyDown){
           const updatedRadiusX = (radiusX > 0) ? Math.abs(Math.min(radiusX, radiusY)) : -1 * Math.abs(Math.min(radiusX, radiusY));
@@ -943,24 +943,24 @@ export class Board {
         this.ctx.stroke();
       }
       else if(this.selectedTool === 5){
-        const length = Math.sqrt((this.startX - e.clientX) ** 2 + (this.startY - e.clientY) ** 2);
+        const length = Math.sqrt((this.startX - client.x) ** 2 + (this.startY - client.y) ** 2);
 
         const arrowLength = (length < 10) ? 5 : (length < 20) ? 15 : 20;
 
-        const angle = Math.atan2(e.clientY - this.startY, e.clientX - this.startX);
+        const angle = Math.atan2(client.y - this.startY, client.x - this.startX);
 
         this.ctx.beginPath();
         this.ctx.moveTo(this.startX, this.startY);
-        this.ctx.lineTo(e.clientX, e.clientY);
+        this.ctx.lineTo(client.x, client.y);
 
-        const a1x = e.clientX - arrowLength * Math.cos(angle - Math.PI / 8);
-        const a1y = e.clientY - arrowLength * Math.sin(angle - Math.PI / 8);
+        const a1x = client.x - arrowLength * Math.cos(angle - Math.PI / 8);
+        const a1y = client.y - arrowLength * Math.sin(angle - Math.PI / 8);
       
-        const a2x = e.clientX - arrowLength * Math.cos(angle + Math.PI / 8);
-        const a2y = e.clientY - arrowLength * Math.sin(angle + Math.PI / 8);
+        const a2x = client.x - arrowLength * Math.cos(angle + Math.PI / 8);
+        const a2y = client.y - arrowLength * Math.sin(angle + Math.PI / 8);
 
         this.ctx.lineTo(a1x, a1y);
-        this.ctx.moveTo(e.clientX, e.clientY);
+        this.ctx.moveTo(client.x, client.y);
         this.ctx.lineTo(a2x, a2y);
 
         this.ctx.strokeStyle = "rgba(0, 0, 0)";
@@ -970,14 +970,14 @@ export class Board {
       else if(this.selectedTool === 6){
         this.ctx.beginPath();
         this.ctx.moveTo(this.startX, this.startY)
-        this.ctx.lineTo(e.clientX, e.clientY);
+        this.ctx.lineTo(client.x, client.y);
 
         this.ctx.strokeStyle = "rgba(0, 0, 0)";
         this.ctx.lineWidth = 1;
         this.ctx.stroke();
       }
       else if(this.selectedTool === 7){
-        this.tempPathPoints.push({ x: e.clientX, y: e.clientY });
+        this.tempPathPoints.push({ x: client.x, y: client.y });
         
         this.ctx.beginPath();
         this.ctx.strokeStyle = 'rgb(0, 0, 0)';
@@ -992,12 +992,12 @@ export class Board {
       else if(this.selectedTool === 0){
         shapes.map((shape) => {
           if(shape.type === 'text'){
-            if(this.isPointInRectangle(e.clientX, e.clientY, shape)){
+            if(this.isPointInRectangle(client.x, client.y, shape)){
               this.dispatch(deleteShapes([shape.id]));
             }
           }
           else{
-            if(this.isPointOnShape(e.clientX, e.clientY, shape)){
+            if(this.isPointOnShape(client.x, client.y, shape)){
               this.dispatch(deleteShapes([shape.id]));
             }
           }
@@ -1008,7 +1008,7 @@ export class Board {
       if(this.selectedTool === 1){
         let cursor = 'auto';
         shapes.map((shape) => {
-          if(this.isPointOnShape(e.clientX, e.clientY, shape)){
+          if(this.isPointOnShape(client.x, client.y, shape)){
             cursor = 'move';
           }
         });
@@ -1016,51 +1016,51 @@ export class Board {
         for(let i = 0; i < this.handles.length; i++){
           const handle = this.handles[i];
 
-          if(handle.type === 'top-left' && this.isPointInRectangle(e.clientX, e.clientY, handle)){
+          if(handle.type === 'top-left' && this.isPointInRectangle(client.x, client.y, handle)){
             cursor = 'nw-resize';
             break;
           }
-          else if(handle.type === 'top-right' && this.isPointInRectangle(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'top-right' && this.isPointInRectangle(client.x, client.y, handle)){
             cursor = 'ne-resize';
             break;
           }
-          else if(handle.type === 'bottom-right' && this.isPointInRectangle(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'bottom-right' && this.isPointInRectangle(client.x, client.y, handle)){
             cursor = 'se-resize';
             break;
           }
-          else if(handle.type === 'bottom-left' && this.isPointInRectangle(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'bottom-left' && this.isPointInRectangle(client.x, client.y, handle)){
             cursor = 'sw-resize';
             break;
           }
-          else if(handle.type === 'top' && this.isPointOnShape(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'top' && this.isPointOnShape(client.x, client.y, handle)){
             cursor = "n-resize";
             break;
           }
-          else if(handle.type === 'right' && this.isPointOnShape(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'right' && this.isPointOnShape(client.x, client.y, handle)){
             cursor = "e-resize";
             break;
           }
-          else if(handle.type === 'bottom' && this.isPointOnShape(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'bottom' && this.isPointOnShape(client.x, client.y, handle)){
             cursor = "s-resize";
             break;
           }
-          else if(handle.type === 'left' && this.isPointOnShape(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'left' && this.isPointOnShape(client.x, client.y, handle)){
             cursor = "w-resize";
             break;
           }
-          else if((handle.type === 'anchor-point-start' || handle.type === 'anchor-point-end' || handle.type === 'control-point') && this.isPointInCircle(e.clientX, e.clientY, handle)){
+          else if((handle.type === 'anchor-point-start' || handle.type === 'anchor-point-end' || handle.type === 'control-point') && this.isPointInCircle(client.x, client.y, handle)){
             cursor = 'pointer';
             break;
           }
-          else if(handle.type === 'selection-body' && this.isPointInRectangle(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'selection-body' && this.isPointInRectangle(client.x, client.y, handle)){
             cursor = 'move';
             break;
           }
-          else if(handle.type === 'body' && this.isPointInRectangle(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'body' && this.isPointInRectangle(client.x, client.y, handle)){
             cursor = 'move';
             break;
           }
-          else if(handle.type === 'rotate' && this.isPointInCircle(e.clientX, e.clientY, handle)){
+          else if(handle.type === 'rotate' && this.isPointInCircle(client.x, client.y, handle)){
             cursor = 'grab';
             break;
           }
@@ -1071,7 +1071,7 @@ export class Board {
     }
   }
 
-  public handleMouseUp(e: MouseEvent, shapes: Shape[], selectedShapes: string[]){
+  public handleMouseUp(client: {x: number, y: number}, shapes: Shape[], selectedShapes: string[]){
     this.isDrawing = false;
     let newShape: Shape | null = null;
     
@@ -1079,16 +1079,16 @@ export class Board {
       this.activeHandle = null;
 
       if(selectedShapes.length === 0){
-        const area = Math.abs((e.clientX - this.startX) * (e.clientY - this.startY));
+        const area = Math.abs((client.x - this.startX) * (client.y - this.startY));
 
         if(area > 100){
-          this.selectShapesWithinRect(shapes, this.startX, this.startY, e.clientX, e.clientY);
+          this.selectShapesWithinRect(shapes, this.startX, this.startY, client.x, client.y);
         }
       }
     }
     else if(this.selectedTool === 2){
-      const startX = Math.min(this.startX, e.clientX), startY = Math.min(this.startY, e.clientY);
-      let width = Math.abs(e.clientX - this.startX), height = Math.abs(e.clientY - this.startY);
+      const startX = Math.min(this.startX, client.x), startY = Math.min(this.startY, client.y);
+      let width = Math.abs(client.x - this.startX), height = Math.abs(client.y - this.startY);
 
       if(this.shiftKeyDown){
         const updatedWidth = (width > 0) ? Math.abs(Math.min(width, height)) : -1 * Math.abs(Math.min(width, height));
@@ -1108,8 +1108,8 @@ export class Board {
       }
     }
     else if(this.selectedTool === 3){
-      const startX = Math.min(this.startX, e.clientX), startY = Math.min(this.startY, e.clientY);
-      let width = Math.abs(e.clientX - this.startX), height = Math.abs(e.clientY - this.startY);
+      const startX = Math.min(this.startX, client.x), startY = Math.min(this.startY, client.y);
+      let width = Math.abs(client.x - this.startX), height = Math.abs(client.y - this.startY);
 
       if(this.shiftKeyDown){
         const updatedWidth = (width > 0) ? Math.abs(Math.min(width, height)) : -1 * Math.abs(Math.min(width, height));
@@ -1129,8 +1129,8 @@ export class Board {
       }
     }
     else if (this.selectedTool === 4){
-      let radiusX = Math.floor((e.clientX - this.startX) / 2);
-      let radiusY = Math.floor((e.clientY - this.startY) / 2);
+      let radiusX = Math.floor((client.x - this.startX) / 2);
+      let radiusY = Math.floor((client.y - this.startY) / 2);
 
       if(this.shiftKeyDown){
         const updatedRadiusX = (radiusX > 0) ? Math.abs(Math.min(radiusX, radiusY)) : -1 * Math.abs(Math.min(radiusX, radiusY));
@@ -1155,8 +1155,8 @@ export class Board {
         type: "arrow",
         startX: this.startX,
         startY: this.startY,
-        endX: e.clientX,
-        endY: e.clientY
+        endX: client.x,
+        endY: client.y
       }
     }
     else if(this.selectedTool === 6){
@@ -1165,8 +1165,8 @@ export class Board {
         type: "line",
         startX: this.startX,
         startY: this.startY,
-        endX: e.clientX,
-        endY: e.clientY
+        endX: client.x,
+        endY: client.y
       }
     }
     else if(this.selectedTool === 7){

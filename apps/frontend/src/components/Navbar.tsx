@@ -68,8 +68,12 @@ export default function Navbar() {
   }
 
   async function createRoom(){
+    if(!profile){
+      setAuthContainer(true);
+      return;
+    }
+    
     setLoading(true);
-
     try {
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BASE_URL}/room/create`,
@@ -84,7 +88,6 @@ export default function Navbar() {
     } catch (error) {
       console.log(error);
     }
-
     setLoading(false);
   }
 

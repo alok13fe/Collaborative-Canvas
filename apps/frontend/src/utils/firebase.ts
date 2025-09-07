@@ -7,12 +7,12 @@ import { initializeApp } from "firebase/app";
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: "excalidraw-clone.firebaseapp.com",
-  projectId: "excalidraw-clone",
-  storageBucket: "excalidraw-clone.firebasestorage.app",
-  messagingSenderId: "931334796925",
-  appId: "1:931334796925:web:db737057e654c4d65ba314",
-  measurementId: "G-L7WWZV821D"
+  authDomain: "collaborative-canvas-82217.firebaseapp.com",
+  projectId: "collaborative-canvas-82217",
+  storageBucket: "collaborative-canvas-82217.firebasestorage.app",
+  messagingSenderId: "670640091192",
+  appId: "1:670640091192:web:ead7cc973d453ee4db76cd",
+  measurementId: "G-SSYKDN5GSR"
 };
 
 // Initialize Firebase

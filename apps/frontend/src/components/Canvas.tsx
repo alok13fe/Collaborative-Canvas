@@ -115,22 +115,60 @@ export default function Canvas({ socket, roomId }: ICanvas) {
     }
   },[boardInstanceRef]);
 
-  const handleMouseDown = useCallback((e: MouseEvent) => {
-    if(!isEditingText && selectedTool === 8){
-      setIsEditingText(true);
-      setTextPosition({ x: e.clientX, y: e.clientY });
+  const handlePointerDown = useCallback((e: MouseEvent | TouchEvent) => {
+    let clientX, clientY;
+    if(window.TouchEvent && e instanceof TouchEvent){
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
     }
     else{
-      boardInstanceRef.current?.handleMouseDown(e, existingShapes, selectedShapes);
+      const mouseEvent = e as MouseEvent;
+      clientX = mouseEvent.clientX;
+      clientY = mouseEvent.clientY;
+    }
+
+    if(!isEditingText && selectedTool === 8){
+      setIsEditingText(true);
+      setTextPosition({ x: clientX, y: clientY });
+    }
+    else{
+      boardInstanceRef.current?.handleMouseDown({x: clientX, y: clientY}, existingShapes, selectedShapes);
     }
   },[isEditingText, selectedTool, existingShapes, selectedShapes]);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    boardInstanceRef.current?.handleMouseMove(e, existingShapes, selectedShapes);
+  const handlePointerMove = useCallback((e: MouseEvent | TouchEvent) => {
+    let clientX, clientY;
+    if(window.TouchEvent && e instanceof TouchEvent){
+      e.preventDefault();
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    }
+    else{
+      const mouseEvent = e as MouseEvent;
+      clientX = mouseEvent.clientX;
+      clientY = mouseEvent.clientY;
+    }
+
+    boardInstanceRef.current?.handleMouseMove({x: clientX, y: clientY}, existingShapes, selectedShapes);
   },[existingShapes, selectedShapes]);
   
-  const handleMouseUp = useCallback((e: MouseEvent) => {
-    boardInstanceRef.current?.handleMouseUp(e, existingShapes, selectedShapes);
+  const handlePointerUp = useCallback((e: MouseEvent | TouchEvent) => {
+    let clientX, clientY;
+    if(window.TouchEvent && e instanceof TouchEvent){
+      if(e.changedTouches[0]){
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+      }
+    }
+    else{
+      const mouseEvent = e as MouseEvent;
+      clientX = mouseEvent.clientX;
+      clientY = mouseEvent.clientY;
+    }
+
+    if(clientX && clientY){
+      boardInstanceRef.current?.handleMouseUp({x: clientX, y: clientY}, existingShapes, selectedShapes);
+    }
   },[existingShapes, selectedShapes]);
 
   function handleTextareaInput(){
@@ -182,20 +220,26 @@ export default function Canvas({ socket, roomId }: ICanvas) {
     }
   },[existingShapes, selectedShapes]);
 
-  /* Mouse Handlers */
+  /* Mouse / Touch Handlers */
   useEffect(() => {
     if(!canvasRef.current) return;
 
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
+    document.addEventListener('mousemove', handlePointerMove);
+    document.addEventListener('touchmove', handlePointerMove, {passive: false});
+    document.addEventListener('mouseup', handlePointerUp);
+    document.addEventListener('touchend', handlePointerUp);
     
     return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+      document.removeEventListener('mousemove', handlePointerMove);
+      document.removeEventListener('touchmove', handlePointerMove);
+      document.removeEventListener('mouseup', handlePointerUp);
+      document.removeEventListener('touchend', handlePointerUp);
     }
-  },[handleMouseDown, handleMouseMove, handleMouseUp]);
+  },[handlePointerDown, handlePointerMove, handlePointerUp]);
 
   /* Keyboard Handlers */
   useEffect(() => {
@@ -218,7 +262,7 @@ export default function Canvas({ socket, roomId }: ICanvas) {
 
   return (
     <>
-      <canvas ref={canvasRef} data-tool={selectedTool} ></canvas>
+      <canvas ref={canvasRef} className='overflow-hidden' data-tool={selectedTool} ></canvas>
       {
         isEditingText && 
         <textarea
