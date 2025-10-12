@@ -2,11 +2,11 @@ import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { persistStore, persistReducer } from 'redux-persist';
 import storage from 'redux-persist/lib/storage'; 
 
-import userSlice from './features/user/userSlice';
+import userReducer from './features/user/userSlice';
 import boardReducer from './features/board/boardSlice';
 
 const rootReducer = combineReducers({
-  user: userSlice,
+  user: userReducer,
   board: boardReducer,
 });
 

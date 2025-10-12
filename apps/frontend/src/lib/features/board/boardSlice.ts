@@ -65,24 +65,28 @@ export const boardSlice = createSlice({
       
       state.selectedShapes = [];
     },
-    clearSelection: (state) => {
-      state.selectedShapes = [];
-    },
     selectShape: (state, action) => {
       state.selectedShapes = [...state.selectedShapes, action.payload];
     },
+    clearSelection: (state) => {
+      state.selectedShapes = [];
+    },
+    resetBoard: (state) => {
+      state.selectedShapes = [];
+      state.existingShapes = [];
+    },
     startCollaborating: (state) => {
       state.isCollaborating = true;
-      state.existingShapes = [];
       state.selectedShapes = [];
+      state.existingShapes = [];
     },
     stopCollaborating: (state) => {
       state.isCollaborating = false;
-      state.existingShapes = [];
       state.selectedShapes = [];
+      state.existingShapes = [];
     }
   },
 })
 
-export const { changeSelectedTool, toggleLockTool, addShape, addRemoteShape, modifyShape, modifyShapes, deleteShapes, clearSelection, selectShape, startCollaborating, stopCollaborating } = boardSlice.actions
+export const { changeSelectedTool, toggleLockTool, addShape, addRemoteShape, modifyShape, modifyShapes, deleteShapes, selectShape, clearSelection, resetBoard, startCollaborating, stopCollaborating } = boardSlice.actions
 export default boardSlice.reducer
