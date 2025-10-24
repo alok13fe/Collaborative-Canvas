@@ -22,7 +22,23 @@ import roomRouter from "./routes/room.routes";
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/room", roomRouter);
 
+/* Starting Server */
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server is listening on PORT: ${PORT}`);
 });
+
+/* Graceful Shutdown of Server */
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server')
+  server.close(() => {
+    console.log('Server shutdown successfully!')
+  })
+})
+
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server')
+  server.close(() => {
+    console.log('Server shutdown successfully!')
+  })
+})

@@ -1,5 +1,5 @@
 import type { AppDispatch } from "@/lib/store";
-import type { Rectangle, Diamond, Ellipse, Text, Image, Shape, CornerHandle, BodyHandle, LineHandle, Handle, AnchorPoint, ControlPoint, RotationHandle, SideHandle } from "@repo/common/shapes";
+import type { Rectangle, Diamond, Ellipse, Text, Image, Shape, CornerHandle, BodyHandle, SelectionBody, LineHandle, Handle, AnchorPoint, ControlPoint, RotationHandle, SideHandle, ShapeProperties } from "@repo/common/shapes";
 import { addShape, modifyShapes, clearSelection, selectShape, deleteShapes } from "@/lib/features/board/boardSlice";
 import { nanoid } from 'nanoid';
 
@@ -10,7 +10,9 @@ export class Board {
   private roomId: string | null;
   private socket: WebSocket | null;
 
-  private panOffset: {x: number; y: number};
+  private shapeProperties: ShapeProperties;
+  public panOffset: {x: number; y: number};
+  public zoomLevel: number;
   private selectedTool: number;
   private isDrawing: boolean;
   public shiftKeyDown: boolean;
@@ -24,7 +26,7 @@ export class Board {
   private tempPathPoints: { x: number, y: number }[] = [];
   private timerId: NodeJS.Timeout | null = null;
 
-  constructor(canvas: HTMLCanvasElement, dispatch: AppDispatch, socket?: WebSocket, roomId?: string){
+  constructor(canvas: HTMLCanvasElement, dispatch: AppDispatch, shapeProperties: ShapeProperties, socket?: WebSocket, roomId?: string){
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
     this.dispatch = dispatch;
@@ -32,9 +34,11 @@ export class Board {
     canvas.width = 2000;
     canvas.height = 1000;
     
+    this.shapeProperties = shapeProperties;
     this.roomId = roomId || null;
     this.socket = socket || null;
     this.panOffset = {x: 0, y: 0};
+    this.zoomLevel = 100;
     this.isDrawing = false;
     this.selectedTool = 1;
     this.shiftKeyDown = false;
@@ -76,19 +80,19 @@ export class Board {
       if(this.handles.length !== 0){
         const clickedHandle = this.handles.find((handle) => {
           if(handle.type === 'top-left' || handle.type === 'top-right' || handle.type === 'bottom-left' || handle.type === 'bottom-right'){
-            return this.isPointInRectangle(client.x, client.y, handle);
+            return this.isPointInShape(client.x, client.y, handle);
           }
           else if(handle.type === 'top' || handle.type === 'left' || handle.type === 'bottom' || handle.type === 'right'){
             return this.isPointOnShape(client.x, client.y, handle);
           }
           else if(handle.type === 'rotate' || handle.type === 'anchor-point-start' || handle.type === 'anchor-point-end' || handle.type === 'control-point'){
-            return this.isPointInCircle(client.x, client.y, handle);
+            return this.isPointInShape(client.x, client.y, handle);
           }
           else if(handle.type === 'selection-body'){
-            return this.isPointInRectangle(client.x, client.y, handle);
+            return this.isPointInShape(client.x, client.y, handle);
           }
           else if(handle.type === 'body'){
-            return this.isPointInRectangle(client.x, client.y, handle);
+            return this.isPointInShape(client.x, client.y, handle);
           }
           else if(handle.type === 'line-body'){
             return this.isPointOnShape(client.x, client.y, handle);
@@ -104,9 +108,13 @@ export class Board {
         else {
           if(this.shiftKeyDown){
             shapes.map(shape => {
-              if(shape.type === 'text' || shape.type === 'image'){
-                if(this.isPointInRectangle(client.x, client.y, shape)){
-                  this.dispatch(clearSelection());
+              if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
+                if(this.isPointInShape(client.x, client.y, shape)){
+                  this.dispatch(selectShape(shape.id));
+                }
+              }
+              else if(shape.type === 'text' || shape.type === 'image'){
+                if(this.isPointInShape(client.x, client.y, shape)){
                   this.dispatch(selectShape(shape.id));
                 }
               }
@@ -117,22 +125,51 @@ export class Board {
           }
           else{
             this.dispatch(clearSelection());
+            
+            let selectedShapeId: string | null = null;
+            shapes.map(shape => {
+              if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
+                if(this.isPointInShape(client.x, client.y, shape)){
+                  selectedShapeId = shape.id;
+                }
+              }
+              else if(shape.type === 'text' || shape.type === 'image'){
+                if(this.isPointInShape(client.x, client.y, shape)){
+                  selectedShapeId = shape.id;
+                }
+              }
+              else if(this.isPointOnShape(client.x, client.y, shape)){
+                selectedShapeId = shape.id;
+              }
+            });
+            
+            if(selectedShapeId){
+              this.dispatch(selectShape(selectedShapeId));
+            }
           }
         }
       }
       else {
+        let selectedShapeId: string | null = null;
         shapes.map(shape => {
-          if(shape.type === 'text' || shape.type === 'image'){
-            if(this.isPointInRectangle(client.x, client.y, shape)){
-              this.dispatch(clearSelection());
-              this.dispatch(selectShape(shape.id));
+          if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
+            if(this.isPointInShape(client.x, client.y, shape)){
+              selectedShapeId = shape.id;
+            }
+          }
+          else if(shape.type === 'text' || shape.type === 'image'){
+            if(this.isPointInShape(client.x, client.y, shape)){
+              selectedShapeId = shape.id;
             }
           }
           else if(this.isPointOnShape(client.x, client.y, shape)){
-            this.dispatch(clearSelection());
-            this.dispatch(selectShape(shape.id));
+            selectedShapeId = shape.id;
           }
         });
+        
+        if(selectedShapeId){
+          this.dispatch(selectShape(selectedShapeId));
+        }
       }
     }
     else if(this.selectedTool === 7){
@@ -893,9 +930,19 @@ export class Board {
           height = updatedHeight;
         }
 
-        this.ctx.strokeStyle = "rgba(0, 0, 0)";
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(this.startX, this.startY, width, height);
+        this.drawShape({
+          id: 'new-shape',
+          type: "rect",
+          stroke: this.shapeProperties.stroke,
+          fillStyle: this.shapeProperties.fillStyle,
+          strokeWidth: this.shapeProperties.strokeWidth,
+          strokeStyle: this.shapeProperties.strokeStyle,
+          startX: this.startX,
+          startY: this.startY,
+          width,
+          height,
+          opacity: this.shapeProperties.opacity
+        });
       }
       else if(this.selectedTool === 3){
         let width = client.x - this.startX;
@@ -909,19 +956,19 @@ export class Board {
           height = updatedHeight;
         }
 
-        const centerX = this.startX + width / 2;
-        const centerY = this.startY + height / 2;
-
-        this.ctx.beginPath();
-        this.ctx.moveTo(centerX, this.startY);
-        this.ctx.lineTo(this.startX + width, centerY);
-        this.ctx.lineTo(centerX, this.startY + height);
-        this.ctx.lineTo(this.startX, centerY);
-        this.ctx.closePath();
-
-        this.ctx.strokeStyle = "rgba(0, 0, 0)";
-        this.ctx.lineWidth = 1;
-        this.ctx.stroke();
+        this.drawShape({
+          id: 'new-shape',
+          type: "diamond",
+          stroke: this.shapeProperties.stroke,
+          fillStyle: this.shapeProperties.fillStyle,
+          strokeWidth: this.shapeProperties.strokeWidth,
+          strokeStyle: this.shapeProperties.strokeStyle,
+          startX: this.startX,
+          startY: this.startY,
+          width,
+          height,
+          opacity: this.shapeProperties.opacity
+        })
       }
       else if(this.selectedTool === 4){
         let radiusX = Math.floor((client.x - this.startX) / 2);
@@ -935,71 +982,87 @@ export class Board {
           radiusY = updatedRadiusY;
         }
 
-        this.ctx.beginPath();
-        this.ctx.ellipse(this.startX + radiusX + 0.5, this.startY + radiusY + 0.5, Math.abs(radiusX), Math.abs(radiusY), 0, 0, 2 * Math.PI);
-        
-        this.ctx.strokeStyle = "rgba(0, 0, 0)";
-        this.ctx.lineWidth = 1;
-        this.ctx.stroke();
+        this.drawShape({
+          id: 'new-shape',
+          type: "ellipse",
+          stroke: this.shapeProperties.stroke,
+          fillStyle: this.shapeProperties.fillStyle,
+          strokeWidth: this.shapeProperties.strokeWidth,
+          strokeStyle: this.shapeProperties.strokeStyle,
+          centerX: this.startX + radiusX,
+          centerY: this.startY + radiusY,
+          radiusX: Math.abs(radiusX),
+          radiusY: Math.abs(radiusY),
+          opacity: this.shapeProperties.opacity
+        })
       }
       else if(this.selectedTool === 5){
-        const length = Math.sqrt((this.startX - client.x) ** 2 + (this.startY - client.y) ** 2);
-
-        const arrowLength = (length < 10) ? 5 : (length < 20) ? 15 : 20;
-
-        const angle = Math.atan2(client.y - this.startY, client.x - this.startX);
-
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.startX, this.startY);
-        this.ctx.lineTo(client.x, client.y);
-
-        const a1x = client.x - arrowLength * Math.cos(angle - Math.PI / 8);
-        const a1y = client.y - arrowLength * Math.sin(angle - Math.PI / 8);
-      
-        const a2x = client.x - arrowLength * Math.cos(angle + Math.PI / 8);
-        const a2y = client.y - arrowLength * Math.sin(angle + Math.PI / 8);
-
-        this.ctx.lineTo(a1x, a1y);
-        this.ctx.moveTo(client.x, client.y);
-        this.ctx.lineTo(a2x, a2y);
-
-        this.ctx.strokeStyle = "rgba(0, 0, 0)";
-        this.ctx.lineWidth = 1;
-        this.ctx.stroke();
+        this.drawShape({
+          id: 'new-shape',
+          type: "arrow",
+          stroke: this.shapeProperties.stroke,
+          strokeWidth: this.shapeProperties.strokeWidth,
+          strokeStyle: this.shapeProperties.strokeStyle,
+          startX: this.startX,
+          startY: this.startY,
+          endX: client.x,
+          endY: client.y,
+          opacity: this.shapeProperties.opacity
+        })
       }
       else if(this.selectedTool === 6){
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.startX, this.startY)
-        this.ctx.lineTo(client.x, client.y);
-
-        this.ctx.strokeStyle = "rgba(0, 0, 0)";
-        this.ctx.lineWidth = 1;
-        this.ctx.stroke();
+        this.drawShape({
+          id: 'new-shape',
+          type: "line",
+          stroke: this.shapeProperties.stroke,
+          strokeWidth: this.shapeProperties.strokeWidth,
+          strokeStyle: this.shapeProperties.strokeStyle,
+          startX: this.startX,
+          startY: this.startY,
+          endX: client.x,
+          endY: client.y,
+          opacity: this.shapeProperties.opacity
+        })
       }
       else if(this.selectedTool === 7){
         this.tempPathPoints.push({ x: client.x, y: client.y });
         
-        this.ctx.beginPath();
-        this.ctx.strokeStyle = 'rgb(0, 0, 0)';
-        this.ctx.lineWidth = 2;
-        this.ctx.moveTo(this.tempPathPoints[0].x, this.tempPathPoints[0].y);
-        for(let i = 1; i < this.tempPathPoints.length; i++){
-          this.ctx.lineTo(this.tempPathPoints[i].x, this.tempPathPoints[i].y);
+        this.drawShape({
+          id: 'new-shape',
+          type: 'pencil',
+          stroke: this.shapeProperties.stroke,
+          strokeWidth: this.shapeProperties.strokeWidth,
+          points: this.tempPathPoints,
+          opacity: this.shapeProperties.opacity
+        })
+      }
+      else if(this.selectedTool === 9){
+        const dx = client.x - this.previousPosition.x, dy = client.y - this.previousPosition.y;
+
+        const newX = this.panOffset.x + dx, newY = this.panOffset.y + dy;
+        if(newX <= 0 && newY <= 0){
+          this.panOffset = {
+            x: newX,
+            y: newY,
+          }
         }
-        this.ctx.stroke();
-        this.ctx.lineWidth = 1;
+
+        this.previousPosition = client;
       }
       else if(this.selectedTool === 0){
         shapes.map((shape) => {
-          if(shape.type === 'text'){
-            if(this.isPointInRectangle(client.x, client.y, shape)){
+          if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
+            if(this.isPointInShape(client.x, client.y, shape)){
               this.dispatch(deleteShapes([shape.id]));
             }
           }
-          else{
-            if(this.isPointOnShape(client.x, client.y, shape)){
+          else if(shape.type === 'text' || shape.type === 'image'){
+            if(this.isPointInShape(client.x, client.y, shape)){
               this.dispatch(deleteShapes([shape.id]));
             }
+          }
+          else if(this.isPointOnShape(client.x, client.y, shape)){
+            this.dispatch(deleteShapes([shape.id]));
           }
         })
       }
@@ -1008,7 +1071,17 @@ export class Board {
       if(this.selectedTool === 1){
         let cursor = 'auto';
         shapes.map((shape) => {
-          if(this.isPointOnShape(client.x, client.y, shape)){
+          if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
+            if(this.isPointInShape(client.x, client.y, shape)){
+              cursor = 'move';
+            }
+          }
+          else if(shape.type === 'text' || shape.type === 'image'){
+            if(this.isPointInShape(client.x, client.y, shape)){
+              cursor = 'move';
+            }
+          }
+          else if(this.isPointOnShape(client.x, client.y, shape)){
             cursor = 'move';
           }
         });
@@ -1016,19 +1089,19 @@ export class Board {
         for(let i = 0; i < this.handles.length; i++){
           const handle = this.handles[i];
 
-          if(handle.type === 'top-left' && this.isPointInRectangle(client.x, client.y, handle)){
+          if(handle.type === 'top-left' && this.isPointInShape(client.x, client.y, handle)){
             cursor = 'nw-resize';
             break;
           }
-          else if(handle.type === 'top-right' && this.isPointInRectangle(client.x, client.y, handle)){
+          else if(handle.type === 'top-right' && this.isPointInShape(client.x, client.y, handle)){
             cursor = 'ne-resize';
             break;
           }
-          else if(handle.type === 'bottom-right' && this.isPointInRectangle(client.x, client.y, handle)){
+          else if(handle.type === 'bottom-right' && this.isPointInShape(client.x, client.y, handle)){
             cursor = 'se-resize';
             break;
           }
-          else if(handle.type === 'bottom-left' && this.isPointInRectangle(client.x, client.y, handle)){
+          else if(handle.type === 'bottom-left' && this.isPointInShape(client.x, client.y, handle)){
             cursor = 'sw-resize';
             break;
           }
@@ -1048,19 +1121,19 @@ export class Board {
             cursor = "w-resize";
             break;
           }
-          else if((handle.type === 'anchor-point-start' || handle.type === 'anchor-point-end' || handle.type === 'control-point') && this.isPointInCircle(client.x, client.y, handle)){
+          else if((handle.type === 'anchor-point-start' || handle.type === 'anchor-point-end' || handle.type === 'control-point') && this.isPointInShape(client.x, client.y, handle)){
             cursor = 'pointer';
             break;
           }
-          else if(handle.type === 'selection-body' && this.isPointInRectangle(client.x, client.y, handle)){
+          else if(handle.type === 'selection-body' && this.isPointInShape(client.x, client.y, handle)){
             cursor = 'move';
             break;
           }
-          else if(handle.type === 'body' && this.isPointInRectangle(client.x, client.y, handle)){
+          else if(handle.type === 'body' && this.isPointInShape(client.x, client.y, handle)){
             cursor = 'move';
             break;
           }
-          else if(handle.type === 'rotate' && this.isPointInCircle(client.x, client.y, handle)){
+          else if(handle.type === 'rotate' && this.isPointInShape(client.x, client.y, handle)){
             cursor = 'grab';
             break;
           }
@@ -1101,10 +1174,15 @@ export class Board {
       newShape = {
         id: 'new-shape',
         type: "rect",
+        stroke: this.shapeProperties.stroke,
+        fillStyle: this.shapeProperties.fillStyle,
+        strokeWidth: this.shapeProperties.strokeWidth,
+        strokeStyle: this.shapeProperties.strokeStyle,
         startX,
         startY,
         width,
-        height
+        height,
+        opacity: this.shapeProperties.opacity
       }
     }
     else if(this.selectedTool === 3){
@@ -1119,13 +1197,18 @@ export class Board {
         height = updatedHeight;
       }
 
-      newShape ={
+      newShape = {
         id: 'new-shape',
         type: "diamond",
+        stroke: this.shapeProperties.stroke,
+        fillStyle: this.shapeProperties.fillStyle,
+        strokeWidth: this.shapeProperties.strokeWidth,
+        strokeStyle: this.shapeProperties.strokeStyle,
         startX,
         startY,
         width,
-        height
+        height,
+        opacity: this.shapeProperties.opacity
       }
     }
     else if (this.selectedTool === 4){
@@ -1143,37 +1226,53 @@ export class Board {
       newShape = {
         id: 'new-shape',
         type: "ellipse",
+        stroke: this.shapeProperties.stroke,
+        fillStyle: this.shapeProperties.fillStyle,
+        strokeWidth: this.shapeProperties.strokeWidth,
+        strokeStyle: this.shapeProperties.strokeStyle,
         centerX: this.startX + radiusX,
         centerY: this.startY + radiusY,
         radiusX: Math.abs(radiusX),
-        radiusY: Math.abs(radiusY)
+        radiusY: Math.abs(radiusY),
+        opacity: this.shapeProperties.opacity
       }
     }
     else if(this.selectedTool === 5){
       newShape = {
         id: 'new-shape',
         type: "arrow",
+        stroke: this.shapeProperties.stroke,
+        strokeWidth: this.shapeProperties.strokeWidth,
+        strokeStyle: this.shapeProperties.strokeStyle,
         startX: this.startX,
         startY: this.startY,
         endX: client.x,
-        endY: client.y
+        endY: client.y,
+        opacity: this.shapeProperties.opacity
       }
     }
     else if(this.selectedTool === 6){
       newShape = {
         id: 'new-shape',
         type: "line",
+        stroke: this.shapeProperties.stroke,
+        strokeWidth: this.shapeProperties.strokeWidth,
+        strokeStyle: this.shapeProperties.strokeStyle,
         startX: this.startX,
         startY: this.startY,
         endX: client.x,
-        endY: client.y
+        endY: client.y,
+        opacity: this.shapeProperties.opacity
       }
     }
     else if(this.selectedTool === 7){
       newShape = {
         id: 'new-shape',
         type: 'pencil',
-        points: this.tempPathPoints
+        stroke: this.shapeProperties.stroke,
+        strokeWidth: this.shapeProperties.strokeWidth,
+        points: this.tempPathPoints,
+        opacity: this.shapeProperties.opacity
       }
 
       this.tempPathPoints = [];
@@ -1202,6 +1301,48 @@ export class Board {
     this.selectedTool = tool;
   }
 
+  public addText(startX: number, startY: number, width: number, text: string){
+    const lines = text.split('\n');
+    const lineHeight = this.shapeProperties.fontSize * 1.25;
+
+    const height = lines.length * lineHeight;
+    let minWidth = 0;
+
+    for(let i = 0; i < lines.length; i++){
+      this.ctx.font = `${this.shapeProperties.fontSize}px ${this.shapeProperties.fontFamily}`;
+      const textMetrics = this.ctx.measureText(lines[i]);
+      const lineWidth = textMetrics.width;
+
+      minWidth = Math.max(minWidth, lineWidth);
+    }
+    
+    const newShape: Text = {
+      id: nanoid(),
+      type: 'text',
+      stroke: this.shapeProperties.stroke,
+      fontFamily: this.shapeProperties.fontFamily,
+      fontSize: this.shapeProperties.fontSize,
+      startX,
+      startY,
+      width: minWidth,
+      minWidth,
+      height,
+      text,
+      opacity: this.shapeProperties.opacity
+    }
+
+    this.dispatch(addShape(newShape));
+    if(this.socket){
+      this.socket.send(JSON.stringify({
+        type: 'add-shape',
+        payload: {
+          roomId: this.roomId,
+          shape: newShape
+        }
+      }));
+    }
+  }
+
   public modifyShapes(shapes: Shape[]){
     this.dispatch(modifyShapes(shapes));
 
@@ -1224,36 +1365,19 @@ export class Board {
     }, 300);
   }
 
-  private getBoundingBoxOfShapes(){
-    const selectionBody = this.handles.filter(handle => handle.type === 'selection-body'); 
-
-    return { 
-      x: selectionBody[0].startX,
-      y: selectionBody[0].startY,
-      width: selectionBody[0].width,
-      height: selectionBody[0].height,
-    };
-  }
-
-  private isPointInRectangle(pointX: number, pointY: number, rect: {startX: number, startY: number, width: number, height: number} | Rectangle | Diamond | Text | Image | BodyHandle | CornerHandle) {
-    const left = Math.min(rect.startX, rect.startX + rect.width);
-    const right = Math.max(rect.startX, rect.startX + rect.width);
-    const top = Math.min(rect.startY, rect.startY + rect.height);
-    const bottom = Math.max(rect.startY, rect.startY + rect.height);
-
-    return pointX > left && pointX < right && pointY > top && pointY < bottom;
-  }
-
-  private isPointInCircle(pointX: number, pointY: number, shape: AnchorPoint | ControlPoint | RotationHandle){
-    return (pointX - shape.x) ** 2  + (pointY - shape.y) ** 2 - 25 <= 0;
-  }
-
-  private isPointInShape(pointX: number, pointY: number, shape: Rectangle | Diamond | Ellipse | BodyHandle | CornerHandle | AnchorPoint | ControlPoint | RotationHandle){
+  private isPointInShape(pointX: number, pointY: number, shape: Rectangle | Diamond | Ellipse | Text | Image | BodyHandle | SelectionBody | CornerHandle | AnchorPoint | ControlPoint | RotationHandle){
+    const dpr = window.devicePixelRatio ||  1;
     const path = new Path2D();
+    
+    pointX = pointX * dpr;
+    pointY = pointY * dpr;
 
     switch(shape.type){
       case "rect":
+      case "text":
+      case "image":
       case "body":
+      case "selection-body":
       case "top-left":
       case "top-right":
       case "bottom-right":
@@ -1353,7 +1477,8 @@ export class Board {
   private selectShapesWithinRect(shapes: Shape[], startX: number, startY: number, endX: number, endY: number){
     this.dispatch(clearSelection());
 
-    const rect = {
+    const selection: BodyHandle = {
+      type: 'body',
       startX: Math.min(startX, endX),
       startY: Math.min(startY, endY),
       width: Math.abs(endX - startX),
@@ -1368,19 +1493,19 @@ export class Board {
         case "diamond":
         case "text":
         case "image":
-          isContained = this.isPointInRectangle(shape.startX, shape.startY, rect) && this.isPointInRectangle(shape.startX + shape.width, shape.startY + shape.height, rect);
+          isContained = this.isPointInShape(shape.startX, shape.startY, selection) && this.isPointInShape(shape.startX + shape.width, shape.startY + shape.height, selection);
           break;
         case "ellipse":
           const startX = shape.centerX - shape.radiusX, startY = shape.centerY - shape.radiusY, width = 2 * shape.radiusX, height = 2 * shape.radiusY;
     
-          isContained = this.isPointInRectangle(startX, startY, rect) && this.isPointInRectangle(startX + width, startY + height, rect);
+          isContained = this.isPointInShape(startX, startY, selection) && this.isPointInShape(startX + width, startY + height, selection);
           break;
         case "line":
         case "arrow":
-          isContained = this.isPointInRectangle(shape.startX, shape.startY, rect) && this.isPointInRectangle(shape.endX, shape.endY, rect);
+          isContained = this.isPointInShape(shape.startX, shape.startY, selection) && this.isPointInShape(shape.endX, shape.endY, selection);
           
           if(shape.cp1X && shape.cp1Y){
-            isContained = isContained && this.isPointInRectangle(shape.cp1X, shape.cp1Y, rect);
+            isContained = isContained && this.isPointInShape(shape.cp1X, shape.cp1Y, selection);
           }
           break;
         case "pencil":
@@ -1393,7 +1518,7 @@ export class Board {
             maxmY = Math.max(maxmY, shape.points[i].y);
           }
     
-          isContained = this.isPointInRectangle(minmX, minmY, rect) && this.isPointInRectangle(maxmX, maxmY, rect);
+          isContained = this.isPointInShape(minmX, minmY, selection) && this.isPointInShape(maxmX, maxmY, selection);
           break;
       }
 
@@ -1403,46 +1528,22 @@ export class Board {
     });
   }
 
-  public addText(startX: number, startY: number, width: number, text: string){
-    const lines = text.split('\n');
-    const lineHeight = 16 * 1.25;
+  private getBoundingBoxOfShapes(){
+    const selectionBody = this.handles.filter(handle => handle.type === 'selection-body'); 
 
-    const height = lines.length * lineHeight;
-    let minWidth = 0;
-
-    for(let i = 0; i < lines.length; i++){
-      const textMetrics = this.ctx.measureText(lines[i]);
-      const lineWidth = textMetrics.width;
-
-      minWidth = Math.max(minWidth, lineWidth);
-    }
-    
-    const newShape = {
-      id: nanoid(),
-      fontSize: 16,
-      type: 'text',
-      startX,
-      startY,
-      width: minWidth,
-      minWidth,
-      height,
-      text
-    }
-
-    this.dispatch(addShape(newShape));
-    if(this.socket){
-      this.socket.send(JSON.stringify({
-        type: 'add-shape',
-        payload: {
-          roomId: this.roomId,
-          shape: newShape
-        }
-      }));
-    }
+    return { 
+      x: selectionBody[0].startX,
+      y: selectionBody[0].startY,
+      width: selectionBody[0].width,
+      height: selectionBody[0].height,
+    };
   }
 
   public redraw(shapes: Shape[], selectedShapes: string[]){
     this.clearCanvas();
+
+    this.ctx.save();
+    this.ctx.translate(this.panOffset.x, this.panOffset.y);
 
     this.handles = this.getHandles(shapes.filter(shape => selectedShapes.includes(shape.id)));
 
@@ -1456,15 +1557,45 @@ export class Board {
 
     shapes.map(shape => this.drawShape(shape));
     sortedHandles.map(handle => this.drawHandle(handle));
+
+    this.ctx.restore();
   }
 
   private drawShape(shape: Shape){
-    this.ctx.strokeStyle = 'rgb(0, 0, 0)';
-    this.ctx.lineWidth = 1;
+    this.ctx.globalAlpha = shape.opacity / 100;
+    if(shape.type !== 'image' && shape.type !== 'text'){
+      this.ctx.strokeStyle = shape.stroke;
+      this.ctx.lineWidth = shape.strokeWidth;
+      if(shape.type !== 'pencil'){
+        if(shape.strokeStyle === 1){
+          this.ctx.setLineDash([]);
+        }
+        else if(shape.strokeStyle === 2){
+          this.ctx.setLineDash([10, 5]);
+        }
+        else if(shape.strokeStyle === 3){
+          this.ctx.setLineDash([5, 6]);
+        }
+      }
+      else {
+        this.ctx.setLineDash([]);
+      }
+    }
 
     switch(shape.type){
       case "rect":
-        this.ctx.strokeRect(shape.startX, shape.startY, shape.width, shape.height);
+        this.ctx.beginPath();
+        this.ctx.moveTo(shape.startX, shape.startY);
+        this.ctx.lineTo(shape.startX + shape.width, shape.startY);
+        this.ctx.lineTo(shape.startX + shape.width, shape.startY + shape.height);
+        this.ctx.lineTo(shape.startX, shape.startY + shape.height);
+        this.ctx.closePath();
+
+        if(shape.fillStyle !== 'transparent'){
+          this.ctx.fillStyle = shape.fillStyle;
+          this.ctx.fill();
+        }
+        this.ctx.stroke();
         break;
       case "diamond":
         const centerX = shape.startX + shape.width / 2;
@@ -1477,11 +1608,20 @@ export class Board {
         this.ctx.lineTo(shape.startX, centerY);
         this.ctx.closePath();
 
+        if(shape.fillStyle !== 'transparent'){
+          this.ctx.fillStyle = shape.fillStyle;
+          this.ctx.fill(); 
+        }
         this.ctx.stroke();
         break;
       case "ellipse":
         this.ctx.beginPath();
         this.ctx.ellipse(shape.centerX, shape.centerY, shape.radiusX, shape.radiusY, 0, 0, 2 * Math.PI);
+
+        if(shape.fillStyle !== 'transparent'){
+          this.ctx.fillStyle = shape.fillStyle;
+          this.ctx.fill(); 
+        }
         this.ctx.stroke();
         break;
       case "line":
@@ -1500,11 +1640,10 @@ export class Board {
         break;
       case "arrow":
         const length = Math.sqrt((shape.startX - shape.endX) ** 2 + (shape.startY - shape.endY) ** 2);
-
         const arrowLength = (length < 10) ? 5 : (length < 20) ? 15 : 20;
         
         let angle: number;
-        
+
         this.ctx.beginPath();
         this.ctx.moveTo(shape.startX, shape.startY);
         if(shape.cp1X && shape.cp1Y){
@@ -1534,8 +1673,6 @@ export class Board {
         break;
       case "pencil":
         this.ctx.beginPath();
-        this.ctx.lineWidth = 2;
-        
         this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
         for(let i = 1; i < shape.points.length; i++){
           this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
@@ -1543,8 +1680,8 @@ export class Board {
         this.ctx.stroke();
         break;
       case "text":
-        this.ctx.font = `${shape.fontSize}px Arial`;
-        this.ctx.fillStyle = 'rgb(0,0,0)';
+        this.ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
+        this.ctx.fillStyle = shape.stroke;
 
         const lines = shape.text.split('\n');
         const lineHeight = shape.fontSize * 1.25;
@@ -1797,6 +1934,8 @@ export class Board {
   private drawHandle(handle: Handle){
     this.ctx.strokeStyle = "rgb(96, 80, 220)";
     this.ctx.lineWidth = 1;
+    this.ctx.setLineDash([]);
+    this.ctx.globalAlpha = 1;
 
     switch(handle.type){
       case "body":

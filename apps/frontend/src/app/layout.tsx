@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import "./globals.css"
 import StoreProvider from "./StoreProvider"
+import { fontVariables } from "./fonts";
 
 export const metadata: Metadata = {
   title: "Collaborative Canvas",
@@ -14,7 +15,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body
+        className={`${fontVariables} antialiased`}
+      >
         <StoreProvider>
           {children}
         </StoreProvider>

@@ -1,25 +1,40 @@
 interface BaseShape {
-  id: string
+  id: string,
+  opacity: number
 }
 
 export interface Rectangle extends BaseShape {
   type: "rect",
+  stroke: string,
+  fillStyle: string,
+  strokeWidth: number,
+  strokeStyle: number,
   startX: number,
   startY: number,
   width: number,
-  height: number
+  height: number,
+  edges?: string
 }
 
 export interface Diamond extends BaseShape {
   type: 'diamond',
+  stroke: string,
+  fillStyle: string,
+  strokeWidth: number,
+  strokeStyle: number,
   startX: number,
   startY: number,
   width: number,
-  height: number
+  height: number,
+  edges?: string
 }
 
 export interface Ellipse extends BaseShape {
   type: "ellipse",
+  stroke: string,
+  fillStyle: string,
+  strokeWidth: number,
+  strokeStyle: number,
   centerX: number,
   centerY: number,
   radiusX: number,
@@ -28,6 +43,9 @@ export interface Ellipse extends BaseShape {
 
 export interface Arrow extends BaseShape {
   type: "arrow",
+  stroke: string,
+  strokeWidth: number,
+  strokeStyle: number,
   startX: number,
   startY: number,
   cp1X?: number,
@@ -38,21 +56,28 @@ export interface Arrow extends BaseShape {
 
 export interface Line extends BaseShape {
   type: "line",
+  stroke: string,
+  strokeWidth: number,
+  strokeStyle: number,
   startX: number,
   startY: number,
   cp1X?: number,
   cp1Y?: number,
   endX: number,
-  endY: number
+  endY: number,
 }
 
 export interface PencilPath extends BaseShape {
   type: 'pencil',
-  points: { x: number, y: number }[]
+  stroke: string,
+  strokeWidth: number,
+  points: { x: number, y: number }[],
 }
 
 export interface Text extends BaseShape {
   type: 'text',
+  stroke: string,
+  fontFamily: string,
   fontSize: number,
   startX: number, 
   startY: number,
@@ -142,3 +167,18 @@ export interface SelectionBody{
 }
 
 export type Handle = CornerHandle | SideHandle | BodyHandle | AnchorPoint | ControlPoint | LineHandle | RotationHandle | SelectionBody;
+
+
+
+
+export interface ShapeProperties {
+  stroke: string,
+  fillStyle: string,
+  strokeWidth: number,
+  strokeStyle: number,
+  edges: 'corner' | 'round',
+  fontFamily: string,
+  fontSize: number,
+  textAlign: 'left' | 'mid' | 'right',
+  opacity: number
+}

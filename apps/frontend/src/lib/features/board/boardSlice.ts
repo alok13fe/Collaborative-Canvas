@@ -1,4 +1,4 @@
-import { Shape } from '@repo/common/shapes';
+import { Shape, ShapeProperties } from '@repo/common/shapes';
 import { createSlice } from '@reduxjs/toolkit'
 import type { PayloadAction } from '@reduxjs/toolkit'
 
@@ -8,7 +8,8 @@ interface BoardState {
   lockTool: boolean;
   existingShapes: Shape[],
   selectedShapes: string[],
-  isCollaborating: boolean
+  isCollaborating: boolean,
+  shapeProperties: ShapeProperties;
 }
 
 // Define the initial state using that type
@@ -17,7 +18,18 @@ const initialState: BoardState = {
   lockTool: false,
   existingShapes: [],
   selectedShapes: [],
-  isCollaborating: false
+  isCollaborating: false,
+  shapeProperties: {
+    stroke: '#000000',
+    fillStyle: 'transparent',
+    strokeWidth: 1,
+    strokeStyle: 1,
+    edges: 'corner',
+    fontFamily: "'Shadows Into Light Two', 'Shadows Into Light Two Fallback'",
+    fontSize: 20,
+    textAlign: 'left',
+    opacity: 100
+  }
 }
 
 export const boardSlice = createSlice({
@@ -84,9 +96,12 @@ export const boardSlice = createSlice({
       state.isCollaborating = false;
       state.selectedShapes = [];
       state.existingShapes = [];
+    },
+    setShapeProperties: (state, action) => {
+      state.shapeProperties = { ...state.shapeProperties, ...action.payload};
     }
   },
 })
 
-export const { changeSelectedTool, toggleLockTool, addShape, addRemoteShape, modifyShape, modifyShapes, deleteShapes, selectShape, clearSelection, resetBoard, startCollaborating, stopCollaborating } = boardSlice.actions
+export const { changeSelectedTool, toggleLockTool, addShape, addRemoteShape, modifyShape, modifyShapes, deleteShapes, selectShape, clearSelection, resetBoard, startCollaborating, stopCollaborating, setShapeProperties } = boardSlice.actions
 export default boardSlice.reducer

@@ -1,14 +1,15 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch} from '@/lib/hooks';
-import { changeSelectedTool, addShape, toggleLockTool, stopCollaborating } from '@/lib/features/board/boardSlice';
 import AuthContainer from './AuthContainer';
 import axios, { isAxiosError } from 'axios';
-import { Image } from '@repo/common/shapes';
+import { Image, Shape, ShapeProperties } from '@repo/common/shapes';
 import { useRouter, usePathname } from 'next/navigation';
 import { nanoid } from 'nanoid';
 import { setUserProfile } from '@/lib/features/user/userSlice';
-import { resetBoard } from '@/lib/features/board/boardSlice';
+import { changeSelectedTool, addShape, modifyShape, deleteShapes, toggleLockTool, stopCollaborating, resetBoard, setShapeProperties } from '@/lib/features/board/boardSlice';
+import { useSocket } from '@/hooks/useSocket';
+import ColorPicker from './ColorPicker';
 
 const strokeColors = [
   {
@@ -18,7 +19,6 @@ const strokeColors = [
   {
     color: '#000000',
     default: true,
-    shades: []
   }, 
   {
     color: '#343a40',
@@ -164,13 +164,19 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   
+  const { profile } = useAppSelector(state => state.user);
+  const { selectedTool, lockTool, selectedShapes, existingShapes, shapeProperties } = useAppSelector(state => state.board);
+  const { socket } = useSocket();
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedShapeActions, setSelectedShapeActions] = useState(false);
+  const [strokeColorPicker, setStrokeColorPicker] = useState(false);
+  const [backgroundColorPicker, setBackgroundColorPicker] = useState(false);
+  const [selectedShapeTypes, setSelectedShapeTypes] = useState(0);
+  const [selectedShapeProperties, setSelectedShapeProperties] = useState(shapeProperties);
   const [authContainer, setAuthContainer] = useState<boolean>(false);
   const [route, setRoute] = useState<string>('login');
   const [loading, setLoading] = useState(false);
-  const { profile } = useAppSelector(state => state.user);
-  const { selectedTool, lockTool, selectedShapes } = useAppSelector(state => state.board);
   
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>){
     const files = e.target.files;
@@ -206,7 +212,8 @@ export default function Navbar() {
           startY: 50,
           width: width,
           height: height,
-          url: response.data.data.url
+          url: response.data.data.url,
+          opacity: shapeProperties.opacity
         }
 
         dispatch(addShape(image));
@@ -255,12 +262,90 @@ export default function Navbar() {
 
   useEffect(() => {
     if((selectedTool >= 2 && selectedTool <= 8) || selectedShapes.length > 0){
+      if(selectedShapes.length === 0){
+        setSelectedShapeTypes(1 << ( selectedTool - 2));
+        setSelectedShapeProperties(shapeProperties);
+      }
+      else {
+        const shapes = existingShapes.filter((shape) => {
+          return selectedShapes.includes(shape.id);
+        });
+
+        let shapeTypes = 0;
+        shapes.map(shape => {
+          switch (shape.type){
+            case "rect":
+              shapeTypes = shapeTypes | 1;
+              break;
+            case "diamond":
+              shapeTypes = shapeTypes | 2;
+              break;
+            case "ellipse":
+              shapeTypes = shapeTypes | 4;
+              break;
+            case "arrow":
+              shapeTypes = shapeTypes | 8;
+              break;
+            case "line":
+              shapeTypes = shapeTypes | 16;
+              break;
+            case "pencil":
+              shapeTypes = shapeTypes | 32;
+              break;
+            case "text":
+              shapeTypes = shapeTypes | 64;
+              break;
+            case "image":
+              shapeTypes = shapeTypes | 128;
+              break;
+          }
+        });
+        setSelectedShapeTypes(shapeTypes);
+
+        const selectedShape = shapes[0];
+        const newProperties: Partial<ShapeProperties> = {};
+
+        switch(selectedShape.type){
+          case "rect":
+          case "diamond":
+          case "ellipse":
+            newProperties.stroke = selectedShape.stroke;
+            newProperties.fillStyle = selectedShape.fillStyle;
+            newProperties.strokeWidth = selectedShape.strokeWidth;
+            newProperties.strokeStyle = selectedShape.strokeStyle;
+            break;
+          case "line":
+          case "arrow":
+            newProperties.stroke = selectedShape.stroke;
+            newProperties.strokeWidth = selectedShape.strokeWidth;
+            newProperties.strokeStyle = selectedShape.strokeStyle;
+            break;
+          case "pencil":
+            newProperties.stroke = selectedShape.stroke;
+            newProperties.strokeWidth = selectedShape.strokeWidth;
+            break;
+          case "text":
+            newProperties.stroke = selectedShape.stroke;
+            newProperties.fontFamily = selectedShape.fontFamily;
+            newProperties.fontSize = selectedShape.fontSize;
+            break;
+        }
+
+        setSelectedShapeProperties(prev => ({
+          ...prev,
+          ...newProperties,
+          opacity: selectedShape.opacity
+        }));
+      }
       setSelectedShapeActions(true);
     }
     else{
+      setSelectedShapeTypes(0);
       setSelectedShapeActions(false);
+      setStrokeColorPicker(false);
+      setBackgroundColorPicker(false);
     }
-  },[selectedTool, selectedShapes]);
+  },[selectedTool, selectedShapes, existingShapes, shapeProperties]);
 
   useEffect(() => {
     if(pathname.startsWith('/room') && !profile){
@@ -277,6 +362,98 @@ export default function Navbar() {
   function logout(){
     dispatch(setUserProfile(null));
     localStorage.removeItem('token');
+  }
+
+  function handleShapeProperties(properties: Partial<ShapeProperties>){
+    if(selectedShapes.length !== 0){
+      const roomId = pathname.replace('/room/','');
+      const [key, value] = Object.entries(properties)[0];
+      const selected: Shape[] = existingShapes.filter(shape => selectedShapes.includes(shape.id));
+
+      selected.forEach(shape => {
+        let updatedShape = { ...shape };
+
+        if(shape.type === 'text' && key === 'fontSize'){
+          let updatedHeight = shape.height;
+          
+          if(typeof(value) === 'number'){
+            updatedHeight = (shape.height * value) / shape.fontSize;
+          }
+          const scale = updatedHeight / shape.height;
+          const width = shape.width * scale;
+
+          if(updatedShape.type === 'text'){
+            updatedShape = {
+              ...updatedShape,
+              height: updatedHeight,
+              width
+            }
+          }
+        }
+
+        updatedShape = {
+          ...updatedShape,
+          [key]: value
+        }
+
+        dispatch(modifyShape(updatedShape));
+        if(socket){
+          socket.send(JSON.stringify({
+            type: 'modify-shape',
+            payload: {
+              roomId: roomId,
+              shape: updatedShape
+            }
+          }));
+        }
+      });
+
+      setSelectedShapeProperties(prev => ({...prev, ...properties}));
+    }
+    else{
+      dispatch(setShapeProperties(properties));
+    }
+  }
+
+  function handleCopyShapes(){
+    const shapes = existingShapes.filter((shape) => {
+      return selectedShapes.includes(shape.id);
+    });
+
+    navigator.clipboard.writeText(JSON.stringify(shapes));
+  }
+
+  function handleDeleteShapes(){
+    if(selectedShapes.length !== 0){
+      const roomId = pathname.replace('/room/','');
+      dispatch(deleteShapes(selectedShapes));
+      
+      if(socket){
+        selectedShapes.map((shapeId) => {
+          socket.send(JSON.stringify({
+            type: 'delete-shape',
+            payload: {
+              roomId,
+              shapeId
+            }
+          }));
+        });
+      }
+    }
+  }
+
+  function handleStrokeColorPicker(){
+    if(strokeColorPicker === false){
+      setBackgroundColorPicker(false);
+    }
+    setStrokeColorPicker(curr => !curr);
+  }
+
+  function handleBackgroundColorPicker(){
+    if(backgroundColorPicker === false){
+      setStrokeColorPicker(false);
+    }
+    setBackgroundColorPicker(curr => !curr);
   }
 
   return (
@@ -550,70 +727,136 @@ export default function Navbar() {
 
       {
         selectedShapeActions &&
-        <div className=' bg-white fixed top-18 left-4 pointer-events-auto border border-gray-200 shadow-md rounded'>
+        <div 
+          className='bg-white fixed top-18 left-4 pointer-events-auto border border-gray-200 shadow-md rounded'
+        >
           <div
             className='h-[calc(100vh-170px)] p-4 space-y-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 overflow-y-scroll'
-          > 
+          >
             {/* Stroke */}
-            <div>
-              <p className='text-xs'>Stroke</p>
-              <div className='py-2 flex items-center'>
-                <div className='pr-2 flex space-x-2 border-r border-gray-300'>
-                  {
-                    strokeColors.map((stroke, idx) => {
-                      if(stroke.default){
-                        return (
-                          <div key={idx} className="w-5 h-5 rounded" style={{ backgroundColor: stroke.color }} />
-                        )
-                      }
-                      return null;
-                    })
-                  }
-                </div>
-                <div className="ml-2 w-6 h-6 bg-black rounded"></div>
-              </div>
-            </div>
-
-            {/* Background */}
             {
-              selectedTool <= 4 &&
+              (selectedShapeTypes & 127) !== 0 &&
               <div>
-                <p className='text-xs'>Background</p>
+                <p className='text-xs'>Stroke</p>
                 <div className='py-2 flex items-center'>
                   <div className='pr-2 flex space-x-2 border-r border-gray-300'>
                     {
-                      backgroundColors.map((stroke, idx) => {
+                      strokeColors.map((stroke, idx) => {
                         if(stroke.default){
                           return (
-                            <div key={idx} className="w-5 h-5 rounded" style={{ backgroundColor: stroke.color }} />
+                            <div 
+                              key={idx} 
+                              className="relative w-5 h-5 rounded" 
+                              style={{ 
+                                backgroundColor: stroke.color,
+                              }}
+                              onClick={() => {handleShapeProperties({stroke: stroke.color})}}
+                            >
+                              <div 
+                                className='absolute -top-0.5 -left-0.5 w-6 h-6 rounded'
+                                style={{ 
+                                  boxShadow: selectedShapeProperties.stroke === stroke.color ? '0 0 0 1px ' : ''
+                                }}
+                              ></div>
+                            </div>
                           )
                         }
                         return null;
                       })
                     }
                   </div>
-                  <div className="ml-2 w-6 h-6 bg-black rounded"></div>
+                  <div 
+                    className="ml-2 w-6 h-6 rounded" 
+                    style={{backgroundColor: selectedShapeProperties.stroke}}
+                    onClick={handleStrokeColorPicker}
+                  ></div>
+                </div>
+              </div>
+            }
+
+            {/* Background */}
+            {
+              (selectedShapeTypes & 7) !== 0 &&
+              <div>
+                <p className='text-xs'>Background</p>
+                <div className='py-2 flex items-center'>
+                  <div className='pr-2 flex space-x-2 border-r border-gray-300'>
+                    {
+                      backgroundColors.map((background, idx) => {
+                        if(background.default){
+                          if(background.color === 'transparent'){
+                            return (
+                              <div 
+                                key={idx} 
+                                className="relative w-5 h-5 shadow-sm rounded" 
+                                style={{backgroundImage: '../../public/transparent.png'}}
+                                onClick={() => {handleShapeProperties({fillStyle: background.color})}}
+                              >
+                                <div 
+                                  className='absolute -top-0.5 -left-0.5 w-6 h-6 rounded'
+                                  style={{ 
+                                    boxShadow: selectedShapeProperties.fillStyle === background.color ? '0 0 0 1px ' : ''
+                                  }}
+                                ></div>
+                              </div>
+                            )
+                          }
+
+                          return (
+                            <div 
+                              key={idx} 
+                              className="relative w-5 h-5 shadow-sm rounded" 
+                              style={{ backgroundColor: background.color }}
+                              onClick={() => {handleShapeProperties({fillStyle: background.color})}} 
+                            >
+                              <div 
+                                className='absolute -top-0.5 -left-0.5 w-6 h-6 rounded'
+                                style={{ 
+                                  boxShadow: selectedShapeProperties.fillStyle === background.color ? '0 0 0 1px ' : ''
+                                }}
+                              ></div>
+                            </div>
+                          )
+                        }
+                        return null;
+                      })
+                    }
+                  </div>
+                  <div 
+                    className="ml-2 w-6 h-6 shadow-sm rounded" 
+                    style={{backgroundColor: shapeProperties.fillStyle}}
+                    onClick={handleBackgroundColorPicker}
+                  ></div>
                 </div>
               </div>
             }
 
             {/* Stroke Width */}
             {
-              selectedTool <= 7 &&
+              (selectedShapeTypes & 63) !== 0 &&
               <div>
                 <p className='text-xs'>Stroke width</p>
                 <div className='py-2 flex space-x-2'>
-                  <div className='w-7 h-7 flex items-center justify-center bg-gray-100 rounded'>
+                  <div 
+                    className={`w-7 h-7 flex items-center justify-center ${selectedShapeProperties.strokeWidth === 1 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                    onClick={() => {handleShapeProperties({strokeWidth: 1})}}
+                  >
                     <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M6 12L18 12" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </div>
-                  <div className='w-7 h-7 flex items-center justify-center bg-gray-100 rounded'>
+                  <div 
+                    className={`w-7 h-7 flex items-center justify-center ${selectedShapeProperties.strokeWidth === 2 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                    onClick={() => {handleShapeProperties({strokeWidth: 2})}}
+                  >
                     <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M6 12L18 12" stroke="#000000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </div>
-                  <div className='w-7 h-7 flex items-center justify-center bg-gray-100 rounded'>
+                  <div 
+                    className={`w-7 h-7 flex items-center justify-center ${selectedShapeProperties.strokeWidth === 3 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                    onClick={() => {handleShapeProperties({strokeWidth: 3})}}
+                  >
                     <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M6 12L18 12" stroke="#000000" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
@@ -624,16 +867,22 @@ export default function Navbar() {
             
             {/* Stroke Style */}
             {
-              selectedTool <= 6 &&
+              (selectedShapeTypes & 31) !== 0 &&
               <div>
                 <p className='text-xs'>Stroke style</p>
                 <div className='py-2 flex space-x-2'>
-                  <div className='w-7 h-7 flex items-center justify-center bg-gray-100 rounded'>
+                  <div 
+                    className={`w-7 h-7 flex items-center justify-center ${selectedShapeProperties.strokeStyle === 1 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                    onClick={() => {handleShapeProperties({strokeStyle: 1})}}
+                  >
                     <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M6 12L18 12" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </div>
-                  <div className='w-7 h-7 flex items-center justify-center bg-gray-100 rounded'>
+                  <div 
+                    className={`w-7 h-7 flex items-center justify-center ${selectedShapeProperties.strokeStyle === 2 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                    onClick={() => {handleShapeProperties({strokeStyle: 2})}}
+                  >
                     <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <g strokeWidth="2">
                         <path stroke='none' d='M0 0h24v24H0z' fill='none'></path>
@@ -643,7 +892,10 @@ export default function Navbar() {
                       </g>
                     </svg>
                   </div>
-                  <div className='w-7 h-7 flex items-center justify-center bg-gray-100 rounded'>
+                  <div 
+                    className={`w-7 h-7 flex items-center justify-center ${selectedShapeProperties.strokeStyle === 3 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                    onClick={() => {handleShapeProperties({strokeStyle: 3})}}
+                  >
                     <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <g strokeWidth="2">
                         <path stroke='none' d='M0 0h24v24H0z' fill='none'></path>
@@ -661,11 +913,14 @@ export default function Navbar() {
             
             {/* Edges */}
             {
-              (selectedTool <= 3) &&
+              (selectedShapeTypes & 3) !== 0 &&
               <div>
                 <p className='text-xs'>Edges</p>
                 <div className='py-2 flex space-x-2'>
-                  <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                  <div 
+                    className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.edges === 'corner' ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                    onClick={() => {handleShapeProperties({edges: 'corner'})}}
+                  >
                     <svg width="18px" height="18px" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M3.33334 9.99998V6.66665C3.33334 6.04326 3.33403 4.9332 3.33539 3.33646C4.95233 3.33436 6.06276 3.33331 6.66668 3.33331H10"></path>
                         <path d="M13.3333 3.33331V3.34331"></path>
@@ -681,7 +936,10 @@ export default function Navbar() {
                         <path d="M16.6667 16.6667V16.6767"></path>
                     </svg>
                   </div>
-                  <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                  <div 
+                    className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.edges === 'round' ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                    onClick={() => {handleShapeProperties({edges: 'round'})}}
+                  >
                     <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <g>
                         <path stroke="none" d="M0 0h24v24H0z" fill="none">
@@ -706,21 +964,30 @@ export default function Navbar() {
             }
             
             {
-              selectedTool === 8 &&
+              (selectedShapeTypes & 64) !== 0 &&
               <>
                 {/* Font Family */}
                 <div>
                   <p className='text-xs'>Font family</p>
                   <div className='py-2 flex space-x-2'>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div 
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.fontFamily[1] === 'S' ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({fontFamily: "'Shadows Into Light Two', 'Shadows Into Light Two Fallback'"})}}
+                    >
                       <svg height="16px" width="16px" version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"  fill="#000000">
                         <path d="M497.209,88.393l-73.626-73.6c-19.721-19.712-51.656-19.729-71.376-0.017L304.473,62.51L71.218,295.816 c-9.671,9.662-17.066,21.341-21.695,34.193L2.238,461.6c-4.93,13.73-1.492,29.064,8.818,39.372 c10.318,10.317,25.659,13.739,39.39,8.801l131.565-47.286c12.851-4.628,24.539-12.032,34.201-21.694l220.801-220.817l0.017,0.017 l12.481-12.498l47.699-47.725l0.026-0.018C516.861,140.039,516.939,108.14,497.209,88.393z M170.064,429.26l-83.822,30.133 l-33.606-33.607l30.116-83.831c0.224-0.604,0.517-1.19,0.758-1.792l88.339,88.339C171.245,428.752,170.676,429.036,170.064,429.26z M191.242,415.831c-1.19,1.19-2.457,2.284-3.741,3.362l-94.674-94.674c1.069-1.276,2.163-2.552,3.352-3.741L327.685,89.22	l95.079,95.08L191.242,415.831z M472.247,134.808l-35.235,35.244l-1.767,1.767l-95.08-95.079l37.003-37.003	c5.921-5.896,15.506-5.905,21.454,0.017l73.625,73.609c5.921,5.904,5.93,15.489-0.026,21.47L472.247,134.808z"/>
                       </svg>
                     </div>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.fontFamily[1] === 'R' ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({fontFamily: "'Roboto', 'Roboto Fallback'"})}}
+                    >
                       A
                     </div>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div 
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.fontFamily[1] === 'N' ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({fontFamily: "'Nunito', 'Nunito Fallback'"})}}
+                    >
                       <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M7 8L3 11.6923L7 16M17 8L21 11.6923L17 16M14 4L10 20" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
@@ -740,16 +1007,28 @@ export default function Navbar() {
                 <div>
                   <p className='text-xs'>Font size</p>
                   <div className='py-2 flex space-x-2'>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.fontSize === 20 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({fontSize: 20})}}
+                    >
                       <p className='font-light'>S</p>
                     </div>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.fontSize === 28 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({fontSize: 28})}}
+                    >
                       <p className='font-light'>M</p>
                     </div>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.fontSize === 36 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({fontSize: 36})}}
+                    >
                       <p className='font-light'>L</p>
                     </div>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.fontSize === 48 ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({fontSize: 48})}}
+                    >
                       <p className='font-light'>XL</p>
                     </div>
                   </div>
@@ -789,16 +1068,35 @@ export default function Navbar() {
             <div>
               <p className='text-xs'>Opacity</p>
               <div className='py-1'>
-                <div className='relative my-2 w-full h-1 bg-gray-400 rounded'>
-                  <div className='absolute -top-1 left-0 h-4 w-4 bg-black rounded-full'></div>
-                </div>
-                <div className='flex justify-between'>
-                  <p className='text-xs'>0</p>
-                  <p className='text-xs'>100</p>
+                <input 
+                  min='0'
+                  max='100'
+                  step='10'
+                  type='range'
+                  className='w-full'
+                  value={selectedShapeProperties.opacity}
+                  onChange={(e) => {handleShapeProperties({opacity: parseInt(e.target.value)})}}
+                />
+                <div className='relative w-full mb-4'>
+                  <p className='absolute left-0 text-xs'>0</p>
+                  {
+                    selectedShapeProperties.opacity !== 0 &&
+                    <p 
+                      style={{
+                        position: 'absolute',
+                        left: (selectedShapeProperties.opacity * 0.92) + '%'
+                      }}
+                      className='text-xs'
+                    >
+                      {selectedShapeProperties.opacity}
+                    </p>
+                  }
                 </div>
               </div>
             </div>
             
+            {/* Align */}
+
             {/* Layers */}
             <div>
               <p className='text-xs'>Layers</p>
@@ -835,25 +1133,46 @@ export default function Navbar() {
             </div>
             
             {/* Actions */}
-            <div>
-              <p className='text-xs'>Actions</p>
-              <div className='py-2 flex space-x-2'>
-                <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
-                  <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5.11765 15.7059C3.9481 15.7059 3 14.7578 3 13.5882V5.11765C3 3.9481 3.9481 3 5.11765 3H13.5882C14.7578 3 15.7059 3.9481 15.7059 5.11765V5.64706" />
-                  <rect x="8.29413" y="8.29412" width="12.7059" height="12.7059" rx="1.5" />
-                  </svg>
-                </div>
-                <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
-                  <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6H21M5 6V20C5 21.1046 5.89543 22 7 22H17C18.1046 22 19 21.1046 19 20V6M8 6V4C8 2.89543 8.89543 2 10 2H14C15.1046 2 16 2.89543 16 4V6" />
-                  <path d="M14 11V17" />
-                  <path d="M10 11V17" />
-                  </svg>
+            {
+              selectedTool === 1 &&
+              <div>
+                <p className='text-xs'>Actions</p>
+                <div className='py-2 flex space-x-2'>
+                  <div 
+                    className='w-7 h-7 flex justify-center items-center bg-gray-100 hover:bg-gray-300 rounded'
+                    onClick={handleCopyShapes}
+                  >
+                    <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5.11765 15.7059C3.9481 15.7059 3 14.7578 3 13.5882V5.11765C3 3.9481 3.9481 3 5.11765 3H13.5882C14.7578 3 15.7059 3.9481 15.7059 5.11765V5.64706" />
+                    <rect x="8.29413" y="8.29412" width="12.7059" height="12.7059" rx="1.5" />
+                    </svg>
+                  </div>
+                  <div 
+                    className='w-7 h-7 flex justify-center items-center bg-gray-100 hover:bg-gray-300 rounded'
+                    onClick={handleDeleteShapes}
+                  >
+                    <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6H21M5 6V20C5 21.1046 5.89543 22 7 22H17C18.1046 22 19 21.1046 19 20V6M8 6V4C8 2.89543 8.89543 2 10 2H14C15.1046 2 16 2.89543 16 4V6" />
+                    <path d="M14 11V17" />
+                    <path d="M10 11V17" />
+                    </svg>
+                  </div>
                 </div>
               </div>
-            </div>
+            }
           </div>
+          {
+            strokeColorPicker &&
+            <div className='absolute top-3 left-full ml-5'>
+              <ColorPicker colors={strokeColors} selectedColor={selectedShapeProperties.stroke} handleChangeColor={(color) => {handleShapeProperties({stroke: color})}} />
+            </div>
+          }
+          {
+            backgroundColorPicker &&
+            <div className='absolute top-18 left-full ml-5'>
+              <ColorPicker colors={backgroundColors} selectedColor={selectedShapeProperties.fillStyle} handleChangeColor={(color) => {handleShapeProperties({fillStyle: color})}} />
+            </div>
+          }
         </div>
       }
 

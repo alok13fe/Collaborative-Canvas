@@ -7,7 +7,7 @@ import boardReducer from './features/board/boardSlice';
 
 const rootReducer = combineReducers({
   user: userReducer,
-  board: boardReducer,
+  board: boardReducer
 });
 
 const persistConfig = {

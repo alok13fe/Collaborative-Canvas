@@ -59,7 +59,7 @@ export function Room({roomId}: {
       });
     }
 
-  },[roomId, profile]);
+  },[dispatch, roomId, profile]);
 
   useEffect(() => {
     if(socket && !loading){

@@ -5,6 +5,7 @@ import { Board } from '@/draw/Board';
 import { addShape, deleteShapes, clearSelection, changeSelectedTool } from '@/lib/features/board/boardSlice';
 import { Shape } from '@repo/common/shapes';
 import { nanoid } from 'nanoid';
+import { robotoFamily, nunitoFamily, chewyFamily, shadowsFamily } from '@/app/fonts';
 
 interface ICanvas {
   socket?: WebSocket | null,
@@ -22,7 +23,7 @@ export default function Canvas({ socket, roomId }: ICanvas) {
   const [isEditingText, setIsEditingText] = useState(false);
   const [textPosition, setTextPosition] = useState({ x: 0, y: 0 });
 
-  const { selectedTool, existingShapes, selectedShapes } = useAppSelector(state => state.board);
+  const { selectedTool, existingShapes, selectedShapes, shapeProperties } = useAppSelector(state => state.board);
 
   const handleKeyDown = useCallback(async (e: KeyboardEvent) => {
     if(!boardInstanceRef.current) return;
@@ -194,50 +195,65 @@ export default function Canvas({ socket, roomId }: ICanvas) {
     setIsEditingText(false);
   }
 
+  /* Load Fonts */
+  useEffect(() => {
+    async function loadFonts() {
+      await Promise.all([
+        document.fonts.load(`12px ${robotoFamily}`),
+        document.fonts.load(`12px ${nunitoFamily}`),
+        document.fonts.load(`12px ${chewyFamily}`),
+        document.fonts.load(`12px ${shadowsFamily}`)
+      ]);
+    }
+    loadFonts();
+  },[]);
+
   /* Initialize Board */
   useEffect(() => {
     if(canvasRef.current){
       if(socket && roomId){
-        boardInstanceRef.current = new Board(canvasRef.current, dispatch, socket, roomId);      
+        boardInstanceRef.current = new Board(canvasRef.current, dispatch, shapeProperties, socket, roomId);      
       }
       else{
-        boardInstanceRef.current = new Board(canvasRef.current, dispatch);      
+        boardInstanceRef.current = new Board(canvasRef.current, dispatch, shapeProperties);
       }
     }
-  },[dispatch, socket, roomId]);
+  },[dispatch, socket, roomId, shapeProperties]);
 
   /* Change Selected Tool */
   useEffect(() => {
     if(boardInstanceRef.current){
       boardInstanceRef.current.changeSelectedTool(selectedTool);
     }
-  },[selectedTool]);
+  },[selectedTool, shapeProperties]);
 
   /* Redraw Shapes */
   useEffect(() => {
     if(boardInstanceRef.current){
       boardInstanceRef.current.redraw(existingShapes, selectedShapes);
     }
-  },[existingShapes, selectedShapes]);
+  },[existingShapes, selectedShapes, shapeProperties]);
 
   /* Mouse / Touch Handlers */
   useEffect(() => {
     if(!canvasRef.current) return;
 
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('touchstart', handlePointerDown);
-    document.addEventListener('mousemove', handlePointerMove);
-    document.addEventListener('touchmove', handlePointerMove, {passive: false});
-    document.addEventListener('mouseup', handlePointerUp);
-    document.addEventListener('touchend', handlePointerUp);
+    canvasRef.current.addEventListener('mousedown', handlePointerDown);
+    canvasRef.current.addEventListener('touchstart', handlePointerDown, { passive: true });
+    canvasRef.current.addEventListener('mousemove', handlePointerMove);
+    canvasRef.current.addEventListener('touchmove', handlePointerMove, {passive: false});
+    canvasRef.current.addEventListener('mouseup', handlePointerUp);
+    canvasRef.current.addEventListener('touchend', handlePointerUp);
     
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('touchstart', handlePointerDown);
-      document.removeEventListener('mousemove', handlePointerMove);
-      document.removeEventListener('touchmove', handlePointerMove);
-      document.removeEventListener('mouseup', handlePointerUp);
-      document.removeEventListener('touchend', handlePointerUp);
+      if(canvasRef.current){
+        canvasRef.current.removeEventListener('mousedown', handlePointerDown);
+        canvasRef.current.removeEventListener('touchstart', handlePointerDown);
+        canvasRef.current.removeEventListener('mousemove', handlePointerMove);
+        canvasRef.current.removeEventListener('touchmove', handlePointerMove);
+        canvasRef.current.removeEventListener('mouseup', handlePointerUp);
+        canvasRef.current.removeEventListener('touchend', handlePointerUp);
+      }
     }
   },[handlePointerDown, handlePointerMove, handlePointerUp]);
 
@@ -269,7 +285,10 @@ export default function Canvas({ socket, roomId }: ICanvas) {
           ref={textInputRef}
           style={{
             left: `${textPosition.x}px`,
-            top: `${textPosition.y}px`
+            top: `${textPosition.y}px`,
+            color: `${shapeProperties.stroke}`,
+            fontSize: `${shapeProperties.fontSize}px`,
+            fontFamily: `${shapeProperties.fontFamily}`
           }}
           className={`w-4 h-16 absolute border-0 outline-0 resize-none overflow-hidden`}
           onBlur={handleTextSubmit} 
