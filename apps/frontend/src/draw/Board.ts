@@ -11,7 +11,7 @@ export class Board {
   private socket: WebSocket | null;
 
   private shapeProperties: ShapeProperties;
-  public panOffset: {x: number; y: number};
+  private panOffset: {x: number; y: number};
   public zoomLevel: number;
   private selectedTool: number;
   private isDrawing: boolean;
@@ -71,6 +71,8 @@ export class Board {
   }
 
   public handleMouseDown(client: {x: number, y: number}, shapes: Shape[], selectedShapes: string[]){
+    const clientX = client.x - this.panOffset.x, clientY = client.y - this.panOffset.y;
+    
     this.isDrawing = true;
     this.startX = client.x;
     this.startY = client.y;
@@ -80,22 +82,22 @@ export class Board {
       if(this.handles.length !== 0){
         const clickedHandle = this.handles.find((handle) => {
           if(handle.type === 'top-left' || handle.type === 'top-right' || handle.type === 'bottom-left' || handle.type === 'bottom-right'){
-            return this.isPointInShape(client.x, client.y, handle);
+            return this.isPointInShape(clientX, clientY, handle);
           }
           else if(handle.type === 'top' || handle.type === 'left' || handle.type === 'bottom' || handle.type === 'right'){
-            return this.isPointOnShape(client.x, client.y, handle);
+            return this.isPointOnShape(clientX, clientY, handle);
           }
           else if(handle.type === 'rotate' || handle.type === 'anchor-point-start' || handle.type === 'anchor-point-end' || handle.type === 'control-point'){
-            return this.isPointInShape(client.x, client.y, handle);
+            return this.isPointInShape(clientX, clientY, handle);
           }
           else if(handle.type === 'selection-body'){
-            return this.isPointInShape(client.x, client.y, handle);
+            return this.isPointInShape(clientX, clientY, handle);
           }
           else if(handle.type === 'body'){
-            return this.isPointInShape(client.x, client.y, handle);
+            return this.isPointInShape(clientX, clientY, handle);
           }
           else if(handle.type === 'line-body'){
-            return this.isPointOnShape(client.x, client.y, handle);
+            return this.isPointOnShape(clientX, clientY, handle);
           }
         });
 
@@ -109,16 +111,16 @@ export class Board {
           if(this.shiftKeyDown){
             shapes.map(shape => {
               if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
-                if(this.isPointInShape(client.x, client.y, shape)){
+                if(this.isPointInShape(clientX, clientY, shape)){
                   this.dispatch(selectShape(shape.id));
                 }
               }
               else if(shape.type === 'text' || shape.type === 'image'){
-                if(this.isPointInShape(client.x, client.y, shape)){
+                if(this.isPointInShape(clientX, clientY, shape)){
                   this.dispatch(selectShape(shape.id));
                 }
               }
-              else if(this.isPointOnShape(client.x, client.y, shape)){
+              else if(this.isPointOnShape(clientX, clientY, shape)){
                 this.dispatch(selectShape(shape.id));
               }
             });
@@ -129,16 +131,16 @@ export class Board {
             let selectedShapeId: string | null = null;
             shapes.map(shape => {
               if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
-                if(this.isPointInShape(client.x, client.y, shape)){
+                if(this.isPointInShape(clientX, clientY, shape)){
                   selectedShapeId = shape.id;
                 }
               }
               else if(shape.type === 'text' || shape.type === 'image'){
-                if(this.isPointInShape(client.x, client.y, shape)){
+                if(this.isPointInShape(clientX, clientY, shape)){
                   selectedShapeId = shape.id;
                 }
               }
-              else if(this.isPointOnShape(client.x, client.y, shape)){
+              else if(this.isPointOnShape(clientX, clientY, shape)){
                 selectedShapeId = shape.id;
               }
             });
@@ -153,16 +155,16 @@ export class Board {
         let selectedShapeId: string | null = null;
         shapes.map(shape => {
           if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
-            if(this.isPointInShape(client.x, client.y, shape)){
+            if(this.isPointInShape(clientX, clientY, shape)){
               selectedShapeId = shape.id;
             }
           }
           else if(shape.type === 'text' || shape.type === 'image'){
-            if(this.isPointInShape(client.x, client.y, shape)){
+            if(this.isPointInShape(clientX, clientY, shape)){
               selectedShapeId = shape.id;
             }
           }
-          else if(this.isPointOnShape(client.x, client.y, shape)){
+          else if(this.isPointOnShape(clientX, clientY, shape)){
             selectedShapeId = shape.id;
           }
         });
@@ -178,6 +180,8 @@ export class Board {
   }
 
   public handleMouseMove(client: {x: number, y: number}, shapes: Shape[], selectedShapes: string[]){
+    const clientX = client.x - this.panOffset.x, clientY = client.y - this.panOffset.y;
+
     if(this.isDrawing){
       this.redraw(shapes, selectedShapes);
 
@@ -1039,12 +1043,9 @@ export class Board {
       else if(this.selectedTool === 9){
         const dx = client.x - this.previousPosition.x, dy = client.y - this.previousPosition.y;
 
-        const newX = this.panOffset.x + dx, newY = this.panOffset.y + dy;
-        if(newX <= 0 && newY <= 0){
-          this.panOffset = {
-            x: newX,
-            y: newY,
-          }
+        this.panOffset = {
+          x: this.panOffset.x + dx,
+          y: this.panOffset.y + dy,
         }
 
         this.previousPosition = client;
@@ -1052,16 +1053,16 @@ export class Board {
       else if(this.selectedTool === 0){
         shapes.map((shape) => {
           if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
-            if(this.isPointInShape(client.x, client.y, shape)){
+            if(this.isPointInShape(clientX, clientY, shape)){
               this.dispatch(deleteShapes([shape.id]));
             }
           }
           else if(shape.type === 'text' || shape.type === 'image'){
-            if(this.isPointInShape(client.x, client.y, shape)){
+            if(this.isPointInShape(clientX, clientY, shape)){
               this.dispatch(deleteShapes([shape.id]));
             }
           }
-          else if(this.isPointOnShape(client.x, client.y, shape)){
+          else if(this.isPointOnShape(clientX, clientY, shape)){
             this.dispatch(deleteShapes([shape.id]));
           }
         })
@@ -1072,16 +1073,16 @@ export class Board {
         let cursor = 'auto';
         shapes.map((shape) => {
           if((shape.type === 'rect' || shape.type === 'diamond' || shape.type === 'ellipse') && shape.fillStyle !== 'transparent'){
-            if(this.isPointInShape(client.x, client.y, shape)){
+            if(this.isPointInShape(clientX, clientY, shape)){
               cursor = 'move';
             }
           }
           else if(shape.type === 'text' || shape.type === 'image'){
-            if(this.isPointInShape(client.x, client.y, shape)){
+            if(this.isPointInShape(clientX, clientY, shape)){
               cursor = 'move';
             }
           }
-          else if(this.isPointOnShape(client.x, client.y, shape)){
+          else if(this.isPointOnShape(clientX, clientY, shape)){
             cursor = 'move';
           }
         });
@@ -1089,51 +1090,51 @@ export class Board {
         for(let i = 0; i < this.handles.length; i++){
           const handle = this.handles[i];
 
-          if(handle.type === 'top-left' && this.isPointInShape(client.x, client.y, handle)){
+          if(handle.type === 'top-left' && this.isPointInShape(clientX, clientY, handle)){
             cursor = 'nw-resize';
             break;
           }
-          else if(handle.type === 'top-right' && this.isPointInShape(client.x, client.y, handle)){
+          else if(handle.type === 'top-right' && this.isPointInShape(clientX, clientY, handle)){
             cursor = 'ne-resize';
             break;
           }
-          else if(handle.type === 'bottom-right' && this.isPointInShape(client.x, client.y, handle)){
+          else if(handle.type === 'bottom-right' && this.isPointInShape(clientX, clientY, handle)){
             cursor = 'se-resize';
             break;
           }
-          else if(handle.type === 'bottom-left' && this.isPointInShape(client.x, client.y, handle)){
+          else if(handle.type === 'bottom-left' && this.isPointInShape(clientX, clientY, handle)){
             cursor = 'sw-resize';
             break;
           }
-          else if(handle.type === 'top' && this.isPointOnShape(client.x, client.y, handle)){
+          else if(handle.type === 'top' && this.isPointOnShape(clientX, clientY, handle)){
             cursor = "n-resize";
             break;
           }
-          else if(handle.type === 'right' && this.isPointOnShape(client.x, client.y, handle)){
+          else if(handle.type === 'right' && this.isPointOnShape(clientX, clientY, handle)){
             cursor = "e-resize";
             break;
           }
-          else if(handle.type === 'bottom' && this.isPointOnShape(client.x, client.y, handle)){
+          else if(handle.type === 'bottom' && this.isPointOnShape(clientX, clientY, handle)){
             cursor = "s-resize";
             break;
           }
-          else if(handle.type === 'left' && this.isPointOnShape(client.x, client.y, handle)){
+          else if(handle.type === 'left' && this.isPointOnShape(clientX, clientY, handle)){
             cursor = "w-resize";
             break;
           }
-          else if((handle.type === 'anchor-point-start' || handle.type === 'anchor-point-end' || handle.type === 'control-point') && this.isPointInShape(client.x, client.y, handle)){
+          else if((handle.type === 'anchor-point-start' || handle.type === 'anchor-point-end' || handle.type === 'control-point') && this.isPointInShape(clientX, clientY, handle)){
             cursor = 'pointer';
             break;
           }
-          else if(handle.type === 'selection-body' && this.isPointInShape(client.x, client.y, handle)){
+          else if(handle.type === 'selection-body' && this.isPointInShape(clientX, clientY, handle)){
             cursor = 'move';
             break;
           }
-          else if(handle.type === 'body' && this.isPointInShape(client.x, client.y, handle)){
+          else if(handle.type === 'body' && this.isPointInShape(clientX, clientY, handle)){
             cursor = 'move';
             break;
           }
-          else if(handle.type === 'rotate' && this.isPointInShape(client.x, client.y, handle)){
+          else if(handle.type === 'rotate' && this.isPointInShape(clientX, clientY, handle)){
             cursor = 'grab';
             break;
           }
@@ -1155,7 +1156,7 @@ export class Board {
         const area = Math.abs((client.x - this.startX) * (client.y - this.startY));
 
         if(area > 100){
-          this.selectShapesWithinRect(shapes, this.startX, this.startY, client.x, client.y);
+          this.selectShapesWithinRect(shapes, this.startX - this.panOffset.x, this.startY - this.panOffset.y, client.x - this.panOffset.x, client.y - this.panOffset.y);
         }
       }
     }
@@ -1178,8 +1179,8 @@ export class Board {
         fillStyle: this.shapeProperties.fillStyle,
         strokeWidth: this.shapeProperties.strokeWidth,
         strokeStyle: this.shapeProperties.strokeStyle,
-        startX,
-        startY,
+        startX: startX - this.panOffset.x,
+        startY: startY - this.panOffset.y,
         width,
         height,
         opacity: this.shapeProperties.opacity
@@ -1204,8 +1205,8 @@ export class Board {
         fillStyle: this.shapeProperties.fillStyle,
         strokeWidth: this.shapeProperties.strokeWidth,
         strokeStyle: this.shapeProperties.strokeStyle,
-        startX,
-        startY,
+        startX: startX - this.panOffset.x,
+        startY: startY - this.panOffset.y,
         width,
         height,
         opacity: this.shapeProperties.opacity
@@ -1230,8 +1231,8 @@ export class Board {
         fillStyle: this.shapeProperties.fillStyle,
         strokeWidth: this.shapeProperties.strokeWidth,
         strokeStyle: this.shapeProperties.strokeStyle,
-        centerX: this.startX + radiusX,
-        centerY: this.startY + radiusY,
+        centerX: this.startX - this.panOffset.x + radiusX,
+        centerY: this.startY - this.panOffset.y + radiusY,
         radiusX: Math.abs(radiusX),
         radiusY: Math.abs(radiusY),
         opacity: this.shapeProperties.opacity
@@ -1244,10 +1245,10 @@ export class Board {
         stroke: this.shapeProperties.stroke,
         strokeWidth: this.shapeProperties.strokeWidth,
         strokeStyle: this.shapeProperties.strokeStyle,
-        startX: this.startX,
-        startY: this.startY,
-        endX: client.x,
-        endY: client.y,
+        startX: this.startX - this.panOffset.x,
+        startY: this.startY - this.panOffset.y,
+        endX: client.x - this.panOffset.x,
+        endY: client.y - this.panOffset.y,
         opacity: this.shapeProperties.opacity
       }
     }
@@ -1258,20 +1259,27 @@ export class Board {
         stroke: this.shapeProperties.stroke,
         strokeWidth: this.shapeProperties.strokeWidth,
         strokeStyle: this.shapeProperties.strokeStyle,
-        startX: this.startX,
-        startY: this.startY,
-        endX: client.x,
-        endY: client.y,
+        startX: this.startX - this.panOffset.x,
+        startY: this.startY - this.panOffset.y,
+        endX: client.x - this.panOffset.x,
+        endY: client.y - this.panOffset.y,
         opacity: this.shapeProperties.opacity
       }
     }
     else if(this.selectedTool === 7){
+      const updatedPathPoints = this.tempPathPoints.map((points) => {
+        return {
+          x: points.x - this.panOffset.x,
+          y: points.y - this.panOffset.y
+        }
+      });
+
       newShape = {
         id: 'new-shape',
         type: 'pencil',
         stroke: this.shapeProperties.stroke,
         strokeWidth: this.shapeProperties.strokeWidth,
-        points: this.tempPathPoints,
+        points: updatedPathPoints,
         opacity: this.shapeProperties.opacity
       }
 
@@ -1322,8 +1330,8 @@ export class Board {
       stroke: this.shapeProperties.stroke,
       fontFamily: this.shapeProperties.fontFamily,
       fontSize: this.shapeProperties.fontSize,
-      startX,
-      startY,
+      startX: startX - this.panOffset.x,
+      startY: startY - this.panOffset.y,
       width: minWidth,
       minWidth,
       height,
