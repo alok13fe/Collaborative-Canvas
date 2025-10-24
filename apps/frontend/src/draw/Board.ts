@@ -1330,6 +1330,7 @@ export class Board {
       stroke: this.shapeProperties.stroke,
       fontFamily: this.shapeProperties.fontFamily,
       fontSize: this.shapeProperties.fontSize,
+      textAlign: this.shapeProperties.textAlign,
       startX: startX - this.panOffset.x,
       startY: startY - this.panOffset.y,
       width: minWidth,
@@ -1690,12 +1691,22 @@ export class Board {
       case "text":
         this.ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
         this.ctx.fillStyle = shape.stroke;
+        this.ctx.textAlign = shape.textAlign;
 
         const lines = shape.text.split('\n');
         const lineHeight = shape.fontSize * 1.25;
 
         for(let i = 0; i < lines.length; i++){
-          this.ctx.fillText(lines[i], shape.startX, shape.startY + lineHeight * (i + 1));
+          if(this.ctx.textAlign === 'left'){
+            this.ctx.fillText(lines[i], shape.startX, shape.startY + lineHeight * (i + 1), shape.width);
+          }
+          else if(this.ctx.textAlign === 'center'){
+            this.ctx.fillText(lines[i], shape.startX + shape.width / 2, shape.startY + lineHeight * (i + 1));
+          }
+          else{
+            this.ctx.fillText(lines[i], shape.startX + shape.width, shape.startY + lineHeight * (i + 1));
+          }
+
         }
         break;
       case 'image':

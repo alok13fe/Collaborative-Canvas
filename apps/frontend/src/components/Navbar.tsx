@@ -824,7 +824,7 @@ export default function Navbar() {
                   </div>
                   <div 
                     className="ml-2 w-6 h-6 shadow-sm rounded" 
-                    style={{backgroundColor: shapeProperties.fillStyle}}
+                    style={{backgroundColor: selectedShapeProperties.fillStyle}}
                     onClick={handleBackgroundColorPicker}
                   ></div>
                 </div>
@@ -1038,21 +1038,30 @@ export default function Navbar() {
                 <div>
                   <p className='text-xs'>Text Align</p>
                   <div className='py-2 flex space-x-2'>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div 
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.textAlign === 'left' ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({textAlign: "left"})}}
+                    >
                       <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <g>
                         <path d="M4 18H14M4 14H20M4 10H14M4 6H20" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                         </g>
                       </svg>
                     </div>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div 
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.textAlign === 'center' ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({textAlign: "center"})}}
+                    >
                       <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <g>
                         <path d="M17 18H7M20 14H4M17 10H7M20 6H4" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                         </g>
                       </svg>
                     </div>
-                    <div className='w-7 h-7 flex justify-center items-center bg-gray-100 rounded'>
+                    <div 
+                      className={`w-7 h-7 flex justify-center items-center ${selectedShapeProperties.textAlign === 'right' ? 'bg-gray-300' : 'bg-gray-100'} rounded`}
+                      onClick={() => {handleShapeProperties({textAlign: "right"})}}
+                    >
                       <svg width="18px" height="18px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <g>
                         <path d="M20 18H10M20 14H4M20 10H10M20 6H4" stroke="#000000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

@@ -288,7 +288,8 @@ export default function Canvas({ socket, roomId }: ICanvas) {
             top: `${textPosition.y}px`,
             color: `${shapeProperties.stroke}`,
             fontSize: `${shapeProperties.fontSize}px`,
-            fontFamily: `${shapeProperties.fontFamily}`
+            fontFamily: `${shapeProperties.fontFamily}`,
+            textAlign: `${shapeProperties.textAlign}`
           }}
           className={`w-4 h-16 absolute border-0 outline-0 resize-none overflow-hidden`}
           onBlur={handleTextSubmit} 

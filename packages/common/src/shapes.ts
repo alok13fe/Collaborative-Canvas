@@ -79,6 +79,7 @@ export interface Text extends BaseShape {
   stroke: string,
   fontFamily: string,
   fontSize: number,
+  textAlign: 'left' | 'center' | 'right',
   startX: number, 
   startY: number,
   width: number,
@@ -179,6 +180,6 @@ export interface ShapeProperties {
   edges: 'corner' | 'round',
   fontFamily: string,
   fontSize: number,
-  textAlign: 'left' | 'mid' | 'right',
+  textAlign: 'left' | 'center' | 'right',
   opacity: number
 }
