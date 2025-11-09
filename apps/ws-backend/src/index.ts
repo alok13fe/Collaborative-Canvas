@@ -241,7 +241,7 @@ wss.on("connection", async function connection(ws, req){
   });
 
   ws.on('close', () => {
-
+    console.log('Websocket Disconnected')
   });
 
 });

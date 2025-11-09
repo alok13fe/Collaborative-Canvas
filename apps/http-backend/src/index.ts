@@ -30,15 +30,15 @@ const server = app.listen(PORT, () => {
 
 /* Graceful Shutdown of Server */
 process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server')
+  console.log('SIGTERM signal received: closing HTTP server');
   server.close(() => {
     console.log('Server shutdown successfully!')
-  })
-})
+  });
+});
 
 process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server')
+  console.log('SIGINT signal received: closing HTTP server');
   server.close(() => {
     console.log('Server shutdown successfully!')
-  })
-})
+  });
+});
