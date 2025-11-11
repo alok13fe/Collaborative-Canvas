@@ -470,7 +470,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className='p-4 w-full fixed top-0 left-0 pointer-events-none'>
+      <nav className='p-4 w-full fixed top-0 left-0 z-10 pointer-events-none'>
         <div className='flex justify-between items-start'>
           {/* Hamburger Menu */}
           <button 
@@ -673,7 +673,7 @@ export default function Navbar() {
       {
         menuOpen &&
         <div 
-          className='w-3xs bg-white fixed top-18 left-4 z-10 pointer-events-auto border border-gray-200 shadow-md rounded'
+          className='w-3xs bg-white fixed top-18 left-4 z-20 pointer-events-auto border border-gray-200 shadow-md rounded'
           onMouseDown={(e) => {e.preventDefault()}}
         >
           {
@@ -740,7 +740,7 @@ export default function Navbar() {
       {
         selectedShapeActions &&
         <div 
-          className='bg-white fixed top-18 left-4 pointer-events-auto border border-gray-200 shadow-md rounded'
+          className='bg-white fixed top-18 left-4 z-10 pointer-events-auto border border-gray-200 shadow-md rounded'
         >
           <div
             className='h-[calc(100vh-170px)] p-4 space-y-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 overflow-y-scroll'
@@ -1187,19 +1187,19 @@ export default function Navbar() {
           </div>
           {
             strokeColorPicker && (selectedShapeTypes & 127) !== 0 &&
-            <div className='absolute top-3 left-full ml-5'>
+            <div className='absolute top-3 left-full ml-5 bg-white'>
               <ColorPicker colors={strokeColors} selectedColor={selectedShapeProperties.stroke} handleChangeColor={(color) => {handleShapeProperties({stroke: color})}} />
             </div>
           }
           {
             backgroundColorPicker && (selectedShapeTypes & 7) !== 0 &&
-            <div className='absolute top-18 left-full ml-5'>
+            <div className='absolute top-18 left-full ml-5 bg-white'>
               <ColorPicker colors={backgroundColors} selectedColor={selectedShapeProperties.fillStyle} handleChangeColor={(color) => {handleShapeProperties({fillStyle: color})}} />
             </div>
           }
           {
             showAvailiableFonts && (selectedShapeTypes & 64) !== 0 &&
-            <div className='absolute top-18 left-full ml-5 p-3 w-45 shadow-md rounded'>
+            <div className='absolute top-18 left-full ml-5 p-3 w-45 bg-white shadow-md rounded'>
               <p className='mb-2 text-xs'>Availiable Fonts</p>
               <div className='space-y-0.5'>
                 <p 

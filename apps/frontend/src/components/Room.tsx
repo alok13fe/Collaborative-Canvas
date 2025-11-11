@@ -22,11 +22,10 @@ export function Room({roomId}: {
 }){
   
   const dispatch = useAppDispatch();
-
   const initializeRef = useRef(false);
 
   const { socket, loading } = useSocket();
-  const { profile }= useAppSelector(state => state.user);
+  const { profile } = useAppSelector(state => state.user);
 
   useEffect(() => {
     dispatch(startCollaborating());

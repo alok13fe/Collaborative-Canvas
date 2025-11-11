@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAppSelector } from "@/lib/hooks";
 
 export function useSocket(){
+  const [socket, setSocket] = useState<WebSocket | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const socketRef = useRef<WebSocket | null>(null);
 
   const { profile } = useAppSelector(state => state.user);
 
@@ -12,21 +12,42 @@ export function useSocket(){
       throw new Error(`WebSocket URL is not defined in environment variables.`)
     }
 
-    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/token=${localStorage.getItem('token')}`);
+    if(!localStorage.getItem('token')){
+      setLoading(false);
+      if(socket){
+        socket.close();
+        setSocket(null);
+      }
+      return;
+    }
+
+    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}?token=${localStorage.getItem('token')}`);
 
     ws.onopen = () => {
-      socketRef.current = ws;
+      setSocket(ws);
       setLoading(false);
     }
 
     ws.onclose = () => {
-      socketRef.current = null;
+      setSocket(null);
+      setLoading(false);
     }
 
+    ws.onerror = (err) => {
+      console.log("WebSocket error:", err);
+      setLoading(false);
+    }
+
+    return () => {
+      if(ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CLOSED){
+        ws.close();
+      }
+      setSocket(null);
+    }
   },[profile]);
 
   return {
-    socket: socketRef.current,
+    socket,
     loading
   }
 }

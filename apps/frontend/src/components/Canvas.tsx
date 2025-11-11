@@ -16,7 +16,8 @@ export default function Canvas({ socket, roomId }: ICanvas) {
 
   const dispatch = useAppDispatch();
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mainCanvasRef = useRef<HTMLCanvasElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const boardInstanceRef = useRef<Board | null>(null);
   const textInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -210,49 +211,56 @@ export default function Canvas({ socket, roomId }: ICanvas) {
 
   /* Initialize Board */
   useEffect(() => {
-    if(canvasRef.current){
+    if(mainCanvasRef.current && previewCanvasRef.current){
       if(socket && roomId){
-        boardInstanceRef.current = new Board(canvasRef.current, dispatch, shapeProperties, socket, roomId);      
+        boardInstanceRef.current = new Board(mainCanvasRef.current, previewCanvasRef.current, dispatch, socket, roomId);      
       }
       else{
-        boardInstanceRef.current = new Board(canvasRef.current, dispatch, shapeProperties);
+        boardInstanceRef.current = new Board(mainCanvasRef.current, previewCanvasRef.current, dispatch);
       }
     }
-  },[dispatch, socket, roomId, shapeProperties]);
+  },[dispatch, socket, roomId]);
 
   /* Change Selected Tool */
   useEffect(() => {
     if(boardInstanceRef.current){
       boardInstanceRef.current.changeSelectedTool(selectedTool);
     }
-  },[selectedTool, shapeProperties]);
+  },[selectedTool]);
+  
+  /* Change Shape Properties */
+  useEffect(() => {
+    if(boardInstanceRef.current){
+      boardInstanceRef.current.changeShapeProperties(shapeProperties);
+    }
+  },[shapeProperties]);
 
   /* Redraw Shapes */
   useEffect(() => {
     if(boardInstanceRef.current){
       boardInstanceRef.current.redraw(existingShapes, selectedShapes);
     }
-  },[existingShapes, selectedShapes, shapeProperties]);
+  },[existingShapes, selectedShapes]);
 
   /* Mouse / Touch Handlers */
   useEffect(() => {
-    if(!canvasRef.current) return;
+    if(!mainCanvasRef.current) return;
 
-    canvasRef.current.addEventListener('mousedown', handlePointerDown);
-    canvasRef.current.addEventListener('touchstart', handlePointerDown, { passive: true });
-    canvasRef.current.addEventListener('mousemove', handlePointerMove);
-    canvasRef.current.addEventListener('touchmove', handlePointerMove, {passive: false});
-    canvasRef.current.addEventListener('mouseup', handlePointerUp);
-    canvasRef.current.addEventListener('touchend', handlePointerUp);
+    mainCanvasRef.current.addEventListener('mousedown', handlePointerDown);
+    mainCanvasRef.current.addEventListener('touchstart', handlePointerDown, { passive: true });
+    mainCanvasRef.current.addEventListener('mousemove', handlePointerMove);
+    mainCanvasRef.current.addEventListener('touchmove', handlePointerMove, {passive: false});
+    mainCanvasRef.current.addEventListener('mouseup', handlePointerUp);
+    mainCanvasRef.current.addEventListener('touchend', handlePointerUp);
     
     return () => {
-      if(canvasRef.current){
-        canvasRef.current.removeEventListener('mousedown', handlePointerDown);
-        canvasRef.current.removeEventListener('touchstart', handlePointerDown);
-        canvasRef.current.removeEventListener('mousemove', handlePointerMove);
-        canvasRef.current.removeEventListener('touchmove', handlePointerMove);
-        canvasRef.current.removeEventListener('mouseup', handlePointerUp);
-        canvasRef.current.removeEventListener('touchend', handlePointerUp);
+      if(mainCanvasRef.current){
+        mainCanvasRef.current.removeEventListener('mousedown', handlePointerDown);
+        mainCanvasRef.current.removeEventListener('touchstart', handlePointerDown);
+        mainCanvasRef.current.removeEventListener('mousemove', handlePointerMove);
+        mainCanvasRef.current.removeEventListener('touchmove', handlePointerMove);
+        mainCanvasRef.current.removeEventListener('mouseup', handlePointerUp);
+        mainCanvasRef.current.removeEventListener('touchend', handlePointerUp);
       }
     }
   },[handlePointerDown, handlePointerMove, handlePointerUp]);
@@ -278,7 +286,19 @@ export default function Canvas({ socket, roomId }: ICanvas) {
 
   return (
     <>
-      <canvas ref={canvasRef} className='overflow-hidden' data-tool={selectedTool} ></canvas>
+      <canvas 
+        ref={mainCanvasRef} 
+        className='absolute top-0 left-0 overflow-hidden' 
+        data-tool={selectedTool} 
+      >
+      </canvas>
+      <canvas 
+        ref={previewCanvasRef} 
+        className='absolute top-0 left-0 overflow-hidden pointer-events-none' 
+        data-tool={selectedTool} 
+      >
+      </canvas>
+
       {
         isEditingText && 
         <textarea

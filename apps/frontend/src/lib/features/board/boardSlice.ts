@@ -38,7 +38,9 @@ export const boardSlice = createSlice({
   reducers: {
     changeSelectedTool: (state, action) => {
       state.selectedTool = action.payload;
-      state.selectedShapes = [];
+      if(state.selectedShapes.length > 0){
+        state.selectedShapes = [];
+      }
     },
     toggleLockTool: (state) => {
       state.lockTool = !state.lockTool;

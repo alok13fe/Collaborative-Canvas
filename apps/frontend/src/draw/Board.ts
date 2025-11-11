@@ -4,8 +4,10 @@ import { addShape, modifyShapes, clearSelection, selectShape, deleteShapes } fro
 import { nanoid } from 'nanoid';
 
 export class Board {
-  private canvas: HTMLCanvasElement;
+  private mainCanvas: HTMLCanvasElement;
+  private previewCanvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  private previewCtx: CanvasRenderingContext2D;
   private dispatch: AppDispatch; 
   private roomId: string | null;
   private socket: WebSocket | null;
@@ -24,17 +26,31 @@ export class Board {
   private activeHandle: { type: string } | null = null;
   private originalGroupBounds: {x: number, y: number, width: number, height: number} | null = null;
   private tempPathPoints: { x: number, y: number }[] = [];
-  private timerId: NodeJS.Timeout | null = null;
+  private shapesToModify: Shape[] = [];
 
-  constructor(canvas: HTMLCanvasElement, dispatch: AppDispatch, shapeProperties: ShapeProperties, socket?: WebSocket, roomId?: string){
-    this.canvas = canvas;
-    this.ctx = canvas.getContext("2d")!;
+  constructor(mainCanvas: HTMLCanvasElement, previewCanvas: HTMLCanvasElement, dispatch: AppDispatch, socket?: WebSocket, roomId?: string){
+    this.mainCanvas = mainCanvas;
+    this.previewCanvas = previewCanvas;
+    this.ctx = mainCanvas.getContext("2d")!;
+    this.previewCtx = previewCanvas.getContext("2d")!;
     this.dispatch = dispatch;
     
-    canvas.width = 2000;
-    canvas.height = 1000;
+    mainCanvas.width = 2000;
+    mainCanvas.height = 1000;
+    previewCanvas.width = 2000;
+    previewCanvas.height = 1000;
     
-    this.shapeProperties = shapeProperties;
+    this.shapeProperties = {
+      stroke: '#000000',
+      fillStyle: 'transparent',
+      strokeWidth: 1,
+      strokeStyle: 1,
+      edges: 'corner',
+      fontFamily: "'Shadows Into Light Two', 'Shadows Into Light Two Fallback'",
+      fontSize: 20,
+      textAlign: 'left',
+      opacity: 100
+    };
     this.roomId = roomId || null;
     this.socket = socket || null;
     this.panOffset = {x: 0, y: 0};
@@ -51,23 +67,38 @@ export class Board {
   private init(){
     const dpr = window.devicePixelRatio || 1;
     
-    const rect = this.canvas.getBoundingClientRect();
+    const rect = this.mainCanvas.getBoundingClientRect();
     
-    this.canvas.width = rect.width * dpr;
-    this.canvas.height = rect.height * dpr;
-    
-    this.canvas.style.width = rect.width + 'px';
-    this.canvas.style.height = rect.height + 'px';
-
+    this.mainCanvas.width = rect.width * dpr;
+    this.mainCanvas.height = rect.height * dpr;
+    this.mainCanvas.style.width = rect.width + 'px';
+    this.mainCanvas.style.height = rect.height + 'px';
     this.ctx.scale(dpr, dpr);
 
-    this.clearCanvas();
+    this.previewCanvas.width = rect.width * dpr;
+    this.previewCanvas.height = rect.height * dpr;
+    this.previewCanvas.style.width = rect.width + 'px';
+    this.previewCanvas.style.height = rect.height + 'px';
+    this.previewCtx.scale(dpr, dpr);
+
+    this.clearMainCanvas();
+    this.clearPreviewCanvas();
   }
 
-  private clearCanvas(){
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  private clearMainCanvas(){
+    this.ctx.clearRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
     this.ctx.fillStyle = "rgb(255,255,255)";
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
+  }
+  
+  private clearPreviewCanvas(){
+    this.previewCtx.clearRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
+    this.previewCtx.fillStyle = "rgba(255,255,255,0)";
+    this.previewCtx.fillRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
+
+    this.previewCtx.globalAlpha = 1;
+    this.previewCtx.lineWidth = 1;
+    this.previewCtx.setLineDash([]);
   }
 
   public handleMouseDown(client: {x: number, y: number}, shapes: Shape[], selectedShapes: string[]){
@@ -183,19 +214,18 @@ export class Board {
     const clientX = client.x - this.panOffset.x, clientY = client.y - this.panOffset.y;
 
     if(this.isDrawing){
-      this.redraw(shapes, selectedShapes);
+      this.redrawSelectedShapes(shapes, selectedShapes);
 
       if(this.selectedTool === 1){
         if(selectedShapes.length === 0){
-          this.ctx.strokeStyle = "rgb(96, 80, 220)";
-          this.ctx.fillStyle = "rgba(204, 204, 255, 0.20)";
-          this.ctx.lineWidth = 1;
-          this.ctx.strokeRect(this.startX + 0.5, this.startY + 0.5, client.x - this.startX, client.y - this.startY);
-          this.ctx.fillRect(this.startX + 0.5, this.startY + 0.5, client.x - this.startX, client.y - this.startY);
+          this.previewCtx.strokeStyle = "rgb(96, 80, 220)";
+          this.previewCtx.fillStyle = "rgba(204, 204, 255, 0.20)";
+          this.previewCtx.strokeRect(this.startX, this.startY, client.x - this.startX, client.y - this.startY);
+          this.previewCtx.fillRect(this.startX, this.startY, client.x - this.startX, client.y - this.startY);
         }
         else{
           const dx = client.x - this.previousPosition.x, dy = client.y - this.previousPosition.y;
-          const selected: Shape[] = shapes.filter(shape => selectedShapes.includes(shape.id));
+          const selected: Shape[] = this.shapesToModify.length === 0 ? shapes.filter(shape => selectedShapes.includes(shape.id)) : this.shapesToModify;
 
           if(this.activeHandle){
             if(this.activeHandle.type === 'top-left'){
@@ -282,7 +312,7 @@ export class Board {
                   }
                 }
 
-                this.modifyShapes([shape]);
+                this.shapesToModify = [shape];
               }
             }
             else if(this.activeHandle.type === 'top-right'){
@@ -367,7 +397,7 @@ export class Board {
                   }
                 }
 
-                this.modifyShapes([shape]);
+                this.shapesToModify = [shape];
               }
             }
             else if(this.activeHandle.type === 'bottom-right'){
@@ -450,7 +480,7 @@ export class Board {
                   }
                 }
 
-                this.modifyShapes([shape]);
+                this.shapesToModify = [shape];
               }
             }
             else if(this.activeHandle.type === 'bottom-left'){
@@ -535,7 +565,7 @@ export class Board {
                   }
                 }
 
-                this.modifyShapes([shape]);
+                this.shapesToModify = [shape];
               }
             }
             else if(this.activeHandle.type === 'top'){
@@ -598,7 +628,7 @@ export class Board {
                   }
                 }
 
-                this.modifyShapes([shape]);
+                this.shapesToModify = [shape];
               }
             }
             else if(this.activeHandle.type === 'right'){
@@ -650,7 +680,7 @@ export class Board {
                   }
                 }
 
-                this.modifyShapes([shape]);
+                this.shapesToModify = [shape];
               }
             }
             else if(this.activeHandle.type === 'bottom'){
@@ -710,7 +740,7 @@ export class Board {
                   }
                 }
 
-                this.modifyShapes([shape]);
+                this.shapesToModify = [shape];
               }
             }
             else if(this.activeHandle.type === 'left'){
@@ -764,7 +794,7 @@ export class Board {
                   }
                 }
 
-                this.modifyShapes([shape]);
+                this.shapesToModify = [shape];
               }
             }
             else if(this.activeHandle.type === 'selection-body'){
@@ -804,7 +834,7 @@ export class Board {
                 return shapeToModify;
               });
 
-              this.modifyShapes(updatedShapes);
+              this.shapesToModify = updatedShapes;
             }
             else if(this.activeHandle.type === 'body'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -843,7 +873,7 @@ export class Board {
                 return shapeToModify;
               });
 
-              this.modifyShapes(updatedShapes);
+              this.shapesToModify = updatedShapes;
             }
             else if(this.activeHandle.type === 'line-body'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -865,7 +895,7 @@ export class Board {
                 return shapeToModify;
               });
 
-              this.modifyShapes(updatedShapes);
+              this.shapesToModify = updatedShapes;
             }
             else if(this.activeHandle.type === 'anchor-point-start'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -879,7 +909,7 @@ export class Board {
                 }
                 return shapeToModify;
               });
-              this.modifyShapes(updatedShapes);
+              this.shapesToModify = updatedShapes;
             }
             else if(this.activeHandle.type === 'anchor-point-end'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -893,7 +923,7 @@ export class Board {
                 }
                 return shapeToModify;
               });
-              this.modifyShapes(updatedShapes);
+              this.shapesToModify = updatedShapes;
             }
             else if(this.activeHandle.type === 'control-point'){
               const updatedShapes: Shape[] = selected.map((shape) => {
@@ -915,7 +945,7 @@ export class Board {
                 } 
                   return shapeToModify;
               });
-              this.modifyShapes(updatedShapes);
+              this.shapesToModify = updatedShapes;
             }
           }
           
@@ -934,19 +964,22 @@ export class Board {
           height = updatedHeight;
         }
 
-        this.drawShape({
-          id: 'new-shape',
-          type: "rect",
-          stroke: this.shapeProperties.stroke,
-          fillStyle: this.shapeProperties.fillStyle,
-          strokeWidth: this.shapeProperties.strokeWidth,
-          strokeStyle: this.shapeProperties.strokeStyle,
-          startX: this.startX,
-          startY: this.startY,
-          width,
-          height,
-          opacity: this.shapeProperties.opacity
-        });
+        this.drawShape(
+          this.previewCtx, 
+          {
+            id: 'new-shape',
+            type: "rect",
+            stroke: this.shapeProperties.stroke,
+            fillStyle: this.shapeProperties.fillStyle,
+            strokeWidth: this.shapeProperties.strokeWidth,
+            strokeStyle: this.shapeProperties.strokeStyle,
+            startX: this.startX,
+            startY: this.startY,
+            width,
+            height,
+            opacity: this.shapeProperties.opacity
+          }
+        );
       }
       else if(this.selectedTool === 3){
         let width = client.x - this.startX;
@@ -960,19 +993,22 @@ export class Board {
           height = updatedHeight;
         }
 
-        this.drawShape({
-          id: 'new-shape',
-          type: "diamond",
-          stroke: this.shapeProperties.stroke,
-          fillStyle: this.shapeProperties.fillStyle,
-          strokeWidth: this.shapeProperties.strokeWidth,
-          strokeStyle: this.shapeProperties.strokeStyle,
-          startX: this.startX,
-          startY: this.startY,
-          width,
-          height,
-          opacity: this.shapeProperties.opacity
-        })
+        this.drawShape(
+          this.previewCtx,
+          {
+            id: 'new-shape',
+            type: "diamond",
+            stroke: this.shapeProperties.stroke,
+            fillStyle: this.shapeProperties.fillStyle,
+            strokeWidth: this.shapeProperties.strokeWidth,
+            strokeStyle: this.shapeProperties.strokeStyle,
+            startX: this.startX,
+            startY: this.startY,
+            width,
+            height,
+            opacity: this.shapeProperties.opacity
+          }
+        );
       }
       else if(this.selectedTool === 4){
         let radiusX = Math.floor((client.x - this.startX) / 2);
@@ -986,59 +1022,71 @@ export class Board {
           radiusY = updatedRadiusY;
         }
 
-        this.drawShape({
-          id: 'new-shape',
-          type: "ellipse",
-          stroke: this.shapeProperties.stroke,
-          fillStyle: this.shapeProperties.fillStyle,
-          strokeWidth: this.shapeProperties.strokeWidth,
-          strokeStyle: this.shapeProperties.strokeStyle,
-          centerX: this.startX + radiusX,
-          centerY: this.startY + radiusY,
-          radiusX: Math.abs(radiusX),
-          radiusY: Math.abs(radiusY),
-          opacity: this.shapeProperties.opacity
-        })
+        this.drawShape(
+          this.previewCtx,
+          {
+            id: 'new-shape',
+            type: "ellipse",
+            stroke: this.shapeProperties.stroke,
+            fillStyle: this.shapeProperties.fillStyle,
+            strokeWidth: this.shapeProperties.strokeWidth,
+            strokeStyle: this.shapeProperties.strokeStyle,
+            centerX: this.startX + radiusX,
+            centerY: this.startY + radiusY,
+            radiusX: Math.abs(radiusX),
+            radiusY: Math.abs(radiusY),
+            opacity: this.shapeProperties.opacity
+          }
+        );
       }
       else if(this.selectedTool === 5){
-        this.drawShape({
-          id: 'new-shape',
-          type: "arrow",
-          stroke: this.shapeProperties.stroke,
-          strokeWidth: this.shapeProperties.strokeWidth,
-          strokeStyle: this.shapeProperties.strokeStyle,
-          startX: this.startX,
-          startY: this.startY,
-          endX: client.x,
-          endY: client.y,
-          opacity: this.shapeProperties.opacity
-        })
+        this.drawShape(
+          this.previewCtx,
+          {
+            id: 'new-shape',
+            type: "arrow",
+            stroke: this.shapeProperties.stroke,
+            strokeWidth: this.shapeProperties.strokeWidth,
+            strokeStyle: this.shapeProperties.strokeStyle,
+            startX: this.startX,
+            startY: this.startY,
+            endX: client.x,
+            endY: client.y,
+            opacity: this.shapeProperties.opacity
+          }
+        );
       }
       else if(this.selectedTool === 6){
-        this.drawShape({
-          id: 'new-shape',
-          type: "line",
-          stroke: this.shapeProperties.stroke,
-          strokeWidth: this.shapeProperties.strokeWidth,
-          strokeStyle: this.shapeProperties.strokeStyle,
-          startX: this.startX,
-          startY: this.startY,
-          endX: client.x,
-          endY: client.y,
-          opacity: this.shapeProperties.opacity
-        })
+        this.drawShape(
+          this.previewCtx,
+          {
+            id: 'new-shape',
+            type: "line",
+            stroke: this.shapeProperties.stroke,
+            strokeWidth: this.shapeProperties.strokeWidth,
+            strokeStyle: this.shapeProperties.strokeStyle,
+            startX: this.startX,
+            startY: this.startY,
+            endX: client.x,
+            endY: client.y,
+            opacity: this.shapeProperties.opacity
+          }
+        );
       }
       else if(this.selectedTool === 7){
         this.tempPathPoints.push({ x: client.x, y: client.y });
         
-        this.drawShape({
-          id: 'new-shape',
-          type: 'pencil',
-          stroke: this.shapeProperties.stroke,
-          strokeWidth: this.shapeProperties.strokeWidth,
-          points: this.tempPathPoints,
-          opacity: this.shapeProperties.opacity
-        })
+        this.drawShape(
+          this.previewCtx,
+          {
+            id: 'new-shape',
+            type: 'pencil',
+            stroke: this.shapeProperties.stroke,
+            strokeWidth: this.shapeProperties.strokeWidth,
+            points: this.tempPathPoints,
+            opacity: this.shapeProperties.opacity
+          }
+        );
       }
       else if(this.selectedTool === 9){
         const dx = client.x - this.previousPosition.x, dy = client.y - this.previousPosition.y;
@@ -1047,6 +1095,7 @@ export class Board {
           x: this.panOffset.x + dx,
           y: this.panOffset.y + dy,
         }
+        this.redraw(shapes, selectedShapes);
 
         this.previousPosition = client;
       }
@@ -1140,7 +1189,7 @@ export class Board {
           }
         }
 
-        this.canvas.style.cursor = cursor;
+        this.mainCanvas.style.cursor = cursor;
       }
     }
   }
@@ -1150,13 +1199,19 @@ export class Board {
     let newShape: Shape | null = null;
     
     if(this.selectedTool === 1){
-      this.activeHandle = null;
+      if(this.activeHandle !== null){
+        this.modifyShapes(this.shapesToModify);
+        
+        this.shapesToModify = [];
+        this.activeHandle = null;
+      }
 
       if(selectedShapes.length === 0){
+        this.clearPreviewCanvas();
+        
         const area = Math.abs((client.x - this.startX) * (client.y - this.startY));
-
         if(area > 100){
-          this.selectShapesWithinRect(shapes, this.startX - this.panOffset.x, this.startY - this.panOffset.y, client.x - this.panOffset.x, client.y - this.panOffset.y);
+          this.selectShapesWithinRect(shapes, selectedShapes, this.startX - this.panOffset.x, this.startY - this.panOffset.y, client.x - this.panOffset.x, client.y - this.panOffset.y);
         }
       }
     }
@@ -1304,9 +1359,13 @@ export class Board {
   }
 
   public changeSelectedTool(tool: number){
-    this.canvas.style.cursor = (tool === 1) ? 'auto' : (tool === 9) ? 'grab' : 'crosshair';
+    this.mainCanvas.style.cursor = (tool === 1) ? 'auto' : (tool === 9) ? 'grab' : 'crosshair';
 
     this.selectedTool = tool;
+  }
+
+  public changeShapeProperties(shapeProperties: ShapeProperties){
+    this.shapeProperties = shapeProperties;
   }
 
   public addText(startX: number, startY: number, width: number, text: string){
@@ -1355,23 +1414,17 @@ export class Board {
   public modifyShapes(shapes: Shape[]){
     this.dispatch(modifyShapes(shapes));
 
-    if(this.timerId){
-      clearTimeout(this.timerId);
-    }
-
-    this.timerId = setTimeout(() => {
-      shapes.forEach((shape) => {
-        if(this.socket){
-          this.socket.send(JSON.stringify({
-            type: 'modify-shape',
-            payload: {
-              roomId: this.roomId,
-              shape: shape
-            }
-          }));
-        }
-      });
-    }, 300);
+    shapes.forEach((shape) => {
+      if(this.socket){
+        this.socket.send(JSON.stringify({
+          type: 'modify-shape',
+          payload: {
+            roomId: this.roomId,
+            shape: shape
+          }
+        }));
+      }
+    });
   }
 
   private isPointInShape(pointX: number, pointY: number, shape: Rectangle | Diamond | Ellipse | Text | Image | BodyHandle | SelectionBody | CornerHandle | AnchorPoint | ControlPoint | RotationHandle){
@@ -1483,8 +1536,10 @@ export class Board {
     return isHit;
   }
 
-  private selectShapesWithinRect(shapes: Shape[], startX: number, startY: number, endX: number, endY: number){
-    this.dispatch(clearSelection());
+  private selectShapesWithinRect(shapes: Shape[], selectedShapes: string[], startX: number, startY: number, endX: number, endY: number){
+    if(selectedShapes.length > 0){
+      this.dispatch(clearSelection());
+    }
 
     const selection: BodyHandle = {
       type: 'body',
@@ -1549,103 +1604,135 @@ export class Board {
   }
 
   public redraw(shapes: Shape[], selectedShapes: string[]){
-    this.clearCanvas();
+    this.clearMainCanvas();
 
     this.ctx.save();
     this.ctx.translate(this.panOffset.x, this.panOffset.y);
 
-    this.handles = this.getHandles(shapes.filter(shape => selectedShapes.includes(shape.id)));
+    shapes.map(shape => {
+      if(!selectedShapes.includes(shape.id)){
+        this.drawShape(this.ctx, shape)
+      }
+    });
+    this.redrawSelectedShapes(shapes, selectedShapes);
+
+    this.ctx.restore();
+  }
+
+  private redrawSelectedShapes(shapes: Shape[], selectedShapes: string[]){
+    this.clearPreviewCanvas();
+
+    this.previewCtx.save();
+    this.previewCtx.translate(this.panOffset.x, this.panOffset.y);
+
+    if(this.shapesToModify.length === 0){
+      this.handles = this.getHandles(shapes.filter(shape => selectedShapes.includes(shape.id)));
+    }
+    else{
+      this.handles = this.getHandles(this.shapesToModify);
+    }
 
     const sortedHandles = [...this.handles].sort((a,b) => {
       const getWeight = (type: string) => {
         return (type === 'body' || type ==='selection-body') ? 0 : 1;
       }
-
       return getWeight(a.type) - getWeight(b.type);
-    })
+    });
 
-    shapes.map(shape => this.drawShape(shape));
+
+    if(this.shapesToModify.length === 0){
+      shapes.map(shape => {
+        if(selectedShapes.includes(shape.id)){
+          this.drawShape(this.previewCtx, shape);
+        }
+      });
+    }
+    else{
+      this.shapesToModify.map(shape => {
+        this.drawShape(this.previewCtx, shape);
+      });
+    }
+
     sortedHandles.map(handle => this.drawHandle(handle));
-
-    this.ctx.restore();
+    this.previewCtx.restore();
   }
 
-  private drawShape(shape: Shape){
-    this.ctx.globalAlpha = shape.opacity / 100;
+  private drawShape(ctx: CanvasRenderingContext2D, shape: Shape){
+    ctx.globalAlpha = shape.opacity / 100;
     if(shape.type !== 'image' && shape.type !== 'text'){
-      this.ctx.strokeStyle = shape.stroke;
-      this.ctx.lineWidth = shape.strokeWidth;
+      ctx.strokeStyle = shape.stroke;
+      ctx.lineWidth = shape.strokeWidth;
       if(shape.type !== 'pencil'){
         if(shape.strokeStyle === 1){
-          this.ctx.setLineDash([]);
+          ctx.setLineDash([]);
         }
         else if(shape.strokeStyle === 2){
-          this.ctx.setLineDash([10, 5]);
+          ctx.setLineDash([10, 5]);
         }
         else if(shape.strokeStyle === 3){
-          this.ctx.setLineDash([5, 6]);
+          ctx.setLineDash([5, 6]);
         }
       }
       else {
-        this.ctx.setLineDash([]);
+        ctx.setLineDash([]);
       }
     }
 
     switch(shape.type){
       case "rect":
-        this.ctx.beginPath();
-        this.ctx.moveTo(shape.startX, shape.startY);
-        this.ctx.lineTo(shape.startX + shape.width, shape.startY);
-        this.ctx.lineTo(shape.startX + shape.width, shape.startY + shape.height);
-        this.ctx.lineTo(shape.startX, shape.startY + shape.height);
-        this.ctx.closePath();
+        ctx.beginPath();
+        ctx.moveTo(shape.startX, shape.startY);
+        ctx.lineTo(shape.startX + shape.width, shape.startY);
+        ctx.lineTo(shape.startX + shape.width, shape.startY + shape.height);
+        ctx.lineTo(shape.startX, shape.startY + shape.height);
+        ctx.closePath();
 
         if(shape.fillStyle !== 'transparent'){
-          this.ctx.fillStyle = shape.fillStyle;
-          this.ctx.fill();
+          ctx.fillStyle = shape.fillStyle;
+          ctx.fill();
         }
-        this.ctx.stroke();
+        ctx.stroke();
         break;
       case "diamond":
         const centerX = shape.startX + shape.width / 2;
         const centerY = shape.startY + shape.height / 2;
 
-        this.ctx.beginPath();
-        this.ctx.moveTo(centerX, shape.startY);
-        this.ctx.lineTo(shape.startX + shape.width, centerY);
-        this.ctx.lineTo(centerX, shape.startY + shape.height);
-        this.ctx.lineTo(shape.startX, centerY);
-        this.ctx.closePath();
+        ctx.beginPath();
+        ctx.moveTo(centerX, shape.startY);
+        ctx.lineTo(shape.startX + shape.width, centerY);
+        ctx.lineTo(centerX, shape.startY + shape.height);
+        ctx.lineTo(shape.startX, centerY);
+        ctx.closePath();
 
         if(shape.fillStyle !== 'transparent'){
-          this.ctx.fillStyle = shape.fillStyle;
-          this.ctx.fill(); 
+          ctx.fillStyle = shape.fillStyle;
+          ctx.fill(); 
         }
-        this.ctx.stroke();
+        ctx.stroke();
         break;
       case "ellipse":
-        this.ctx.beginPath();
-        this.ctx.ellipse(shape.centerX, shape.centerY, shape.radiusX, shape.radiusY, 0, 0, 2 * Math.PI);
+        ctx.beginPath();
+        ctx.ellipse(shape.centerX, shape.centerY, shape.radiusX, shape.radiusY, 0, 0, 2 * Math.PI);
 
         if(shape.fillStyle !== 'transparent'){
-          this.ctx.fillStyle = shape.fillStyle;
-          this.ctx.fill(); 
+          ctx.fillStyle = shape.fillStyle;
+          ctx.fill(); 
         }
-        this.ctx.stroke();
+        ctx.stroke();
         break;
       case "line":
-        this.ctx.beginPath();
-        this.ctx.moveTo(shape.startX, shape.startY);
+        ctx.beginPath();
+        ctx.moveTo(shape.startX, shape.startY);
         if(shape.cp1X && shape.cp1Y){
           const controlX = 2 * shape.cp1X - 0.5 * shape.startX - 0.5 * shape.endX;
           const controlY = 2 * shape.cp1Y - 0.5 * shape.startY - 0.5 * shape.endY;
 
-          this.ctx.quadraticCurveTo(controlX, controlY, shape.endX, shape.endY);
+          ctx.quadraticCurveTo(controlX, controlY, shape.endX, shape.endY);
         }
         else{
-          this.ctx.lineTo(shape.endX, shape.endY);
+          ctx.lineTo(shape.endX, shape.endY);
         }
-        this.ctx.stroke();
+        ctx.stroke();
         break;
       case "arrow":
         const length = Math.sqrt((shape.startX - shape.endX) ** 2 + (shape.startY - shape.endY) ** 2);
@@ -1653,18 +1740,18 @@ export class Board {
         
         let angle: number;
 
-        this.ctx.beginPath();
-        this.ctx.moveTo(shape.startX, shape.startY);
+        ctx.beginPath();
+        ctx.moveTo(shape.startX, shape.startY);
         if(shape.cp1X && shape.cp1Y){
           const controlX = 2 * shape.cp1X - 0.5 * shape.startX - 0.5 * shape.endX;
           const controlY = 2 * shape.cp1Y - 0.5 * shape.startY - 0.5 * shape.endY;
 
-          this.ctx.quadraticCurveTo(controlX, controlY, shape.endX, shape.endY);
+          ctx.quadraticCurveTo(controlX, controlY, shape.endX, shape.endY);
 
           angle = Math.atan2(shape.endY - shape.cp1Y, shape.endX - shape.cp1X);
         }
         else{
-          this.ctx.lineTo(shape.endX, shape.endY);
+          ctx.lineTo(shape.endX, shape.endY);
           
           angle = Math.atan2(shape.endY - shape.startY, shape.endX - shape.startX);
         }
@@ -1675,38 +1762,37 @@ export class Board {
         const a2x = shape.endX - arrowLength * Math.cos(angle + Math.PI / 8);
         const a2y = shape.endY - arrowLength * Math.sin(angle + Math.PI / 8);
 
-        this.ctx.lineTo(a1x, a1y);
-        this.ctx.moveTo(shape.endX, shape.endY);
-        this.ctx.lineTo(a2x, a2y);
-        this.ctx.stroke();
+        ctx.lineTo(a1x, a1y);
+        ctx.moveTo(shape.endX, shape.endY);
+        ctx.lineTo(a2x, a2y);
+        ctx.stroke();
         break;
       case "pencil":
-        this.ctx.beginPath();
-        this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
+        ctx.beginPath();
+        ctx.moveTo(shape.points[0].x, shape.points[0].y);
         for(let i = 1; i < shape.points.length; i++){
-          this.ctx.lineTo(shape.points[i].x, shape.points[i].y);
+          ctx.lineTo(shape.points[i].x, shape.points[i].y);
         }
-        this.ctx.stroke();
+        ctx.stroke();
         break;
       case "text":
-        this.ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
-        this.ctx.fillStyle = shape.stroke;
-        this.ctx.textAlign = shape.textAlign;
+        ctx.font = `${shape.fontSize}px ${shape.fontFamily}`;
+        ctx.fillStyle = shape.stroke;
+        ctx.textAlign = shape.textAlign;
 
         const lines = shape.text.split('\n');
         const lineHeight = shape.fontSize * 1.25;
 
         for(let i = 0; i < lines.length; i++){
-          if(this.ctx.textAlign === 'left'){
-            this.ctx.fillText(lines[i], shape.startX, shape.startY + lineHeight * (i + 1), shape.width);
+          if(shape.textAlign === 'left'){
+            ctx.fillText(lines[i], shape.startX, shape.startY + lineHeight * (i + 1), shape.width);
           }
-          else if(this.ctx.textAlign === 'center'){
-            this.ctx.fillText(lines[i], shape.startX + shape.width / 2, shape.startY + lineHeight * (i + 1));
+          else if(shape.textAlign === 'center'){
+            ctx.fillText(lines[i], shape.startX + shape.width / 2, shape.startY + lineHeight * (i + 1));
           }
           else{
-            this.ctx.fillText(lines[i], shape.startX + shape.width, shape.startY + lineHeight * (i + 1));
+            ctx.fillText(lines[i], shape.startX + shape.width, shape.startY + lineHeight * (i + 1));
           }
-
         }
         break;
       case 'image':
@@ -1714,7 +1800,7 @@ export class Board {
         myImage.src = shape.url;
 
         myImage.onload = () => {
-          this.ctx.drawImage(myImage, shape.startX, shape.startY, shape.width, shape.height);
+          ctx.drawImage(myImage, shape.startX, shape.startY, shape.width, shape.height);
         }
       }
   }
@@ -1951,43 +2037,43 @@ export class Board {
   }
 
   private drawHandle(handle: Handle){
-    this.ctx.strokeStyle = "rgb(96, 80, 220)";
-    this.ctx.lineWidth = 1;
-    this.ctx.setLineDash([]);
-    this.ctx.globalAlpha = 1;
+    this.previewCtx.strokeStyle = "rgb(96, 80, 220)";
+    this.previewCtx.lineWidth = 1;
+    this.previewCtx.setLineDash([]);
+    this.previewCtx.globalAlpha = 1;
 
     switch(handle.type){
       case "body":
-        this.ctx.strokeRect(handle.startX, handle.startY, handle.width, handle.height);
+        this.previewCtx.strokeRect(handle.startX, handle.startY, handle.width, handle.height);
         break;
       case "selection-body":
-        this.ctx.setLineDash([2, 2]);
-        this.ctx.strokeRect(handle.startX, handle.startY, handle.width, handle.height);
-        this.ctx.setLineDash([]);
+        this.previewCtx.setLineDash([2, 2]);
+        this.previewCtx.strokeRect(handle.startX, handle.startY, handle.width, handle.height);
+        this.previewCtx.setLineDash([]);
         break;
       case "top-left":
       case "top-right":
       case "bottom-right":
       case "bottom-left":
-        this.ctx.fillStyle = "rgb(255, 255, 255)";
-        this.ctx.fillRect(handle.startX, handle.startY, handle.width, handle.height);
-        this.ctx.strokeRect(handle.startX, handle.startY, handle.width, handle.height);
+        this.previewCtx.fillStyle = "rgb(255, 255, 255)";
+        this.previewCtx.fillRect(handle.startX, handle.startY, handle.width, handle.height);
+        this.previewCtx.strokeRect(handle.startX, handle.startY, handle.width, handle.height);
         break;
       case "control-point":
-        this.ctx.fillStyle = "rgb(204, 204, 255, 0.60)";
-        this.ctx.beginPath();
-        this.ctx.arc(handle.x, handle.y, handle.radius, 0, 2 * Math.PI);
-        this.ctx.stroke();
-        this.ctx.fill();
+        this.previewCtx.fillStyle = "rgb(204, 204, 255, 0.60)";
+        this.previewCtx.beginPath();
+        this.previewCtx.arc(handle.x, handle.y, handle.radius, 0, 2 * Math.PI);
+        this.previewCtx.stroke();
+        this.previewCtx.fill();
         break;
       case "anchor-point-start":
       case "anchor-point-end":
       case "rotate":
-        this.ctx.fillStyle = "rgb(255, 255, 255)";
-        this.ctx.beginPath();
-        this.ctx.arc(handle.x, handle.y, 4, 0, 2 * Math.PI);
-        this.ctx.stroke();
-        this.ctx.fill();
+        this.previewCtx.fillStyle = "rgb(255, 255, 255)";
+        this.previewCtx.beginPath();
+        this.previewCtx.arc(handle.x, handle.y, 4, 0, 2 * Math.PI);
+        this.previewCtx.stroke();
+        this.previewCtx.fill();
         break;
     }
   }
