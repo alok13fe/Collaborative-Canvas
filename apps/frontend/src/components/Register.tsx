@@ -21,7 +21,7 @@ export default function Register({setPage, onClose}: SignUpProps){
     firstName: '',
     lastName: '',
     email: '',
-    password: '',
+    password: ''
   });
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);

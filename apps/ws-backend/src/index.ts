@@ -9,7 +9,8 @@ import { deleteShapeSchema, shapeSchema } from '@repo/common/schema';
 
 const rooms: Record<string, Set<WebSocket>> = {};
 
-const wss = new WebSocketServer({port: 1234});
+const wss = new WebSocketServer({port: 8080});
+console.log(`Web Socket Server is listening on PORT: 8080`);
 
 const client = createClient({
   url: process.env.REDIS_URL

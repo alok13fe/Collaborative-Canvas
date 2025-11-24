@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef } from "react";
 import { useAppSelector, useAppDispatch } from "@/lib/hooks";
-import { useSocket } from "@/hooks/useSocket";
+import { useSocketContext } from "@/contexts/SocketContext";
 import Canvas from '@/components/Canvas'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
@@ -24,7 +24,7 @@ export function Room({roomId}: {
   const dispatch = useAppDispatch();
   const initializeRef = useRef(false);
 
-  const { socket, loading } = useSocket();
+  const {socket, loading} = useSocketContext();
   const { profile } = useAppSelector(state => state.user);
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export function Room({roomId}: {
         }
       }));
 
-      socket.onmessage = (event) => {
+      function handleMessage(event: MessageEvent){
         const parsedData = JSON.parse(event.data);  
         if(parsedData.type === 'add-shape'){
           dispatch(addRemoteShape(parsedData.payload.shape));
@@ -79,10 +79,16 @@ export function Room({roomId}: {
         }  
         else if(parsedData.type === 'delete-shape'){
           dispatch(deleteShapes([parsedData.payload.shapeId]));
-        }  
+        }
+      }
+
+      socket.addEventListener('message', handleMessage);
+      
+      return () => {
+        socket.removeEventListener('message', handleMessage);
       }
     }
-  },[dispatch, roomId, socket, loading, profile]);
+  },[dispatch, roomId, socket, loading]);
 
   return(
     <main>

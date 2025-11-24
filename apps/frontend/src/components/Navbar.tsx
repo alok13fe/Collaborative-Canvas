@@ -8,7 +8,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { nanoid } from 'nanoid';
 import { setUserProfile } from '@/lib/features/user/userSlice';
 import { changeSelectedTool, addShape, modifyShape, deleteShapes, toggleLockTool, stopCollaborating, resetBoard, setShapeProperties } from '@/lib/features/board/boardSlice';
-import { useSocket } from '@/hooks/useSocket';
+import { useSocketContext } from '@/contexts/SocketContext';
 import ColorPicker from './ColorPicker';
 
 const strokeColors = [
@@ -166,7 +166,7 @@ export default function Navbar() {
   
   const { profile } = useAppSelector(state => state.user);
   const { selectedTool, lockTool, selectedShapes, existingShapes, shapeProperties } = useAppSelector(state => state.board);
-  const { socket } = useSocket();
+  const { socket } = useSocketContext();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedShapeActions, setSelectedShapeActions] = useState(false);

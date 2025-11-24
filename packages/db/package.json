@@ -5,19 +5,13 @@
   "exports": {
     "./client": "./src/index.ts"
   },
-  "scripts": {
-    "build": "tsc -b"
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
+  "type": "commonjs",
   "description": "",
   "dependencies": {
     "@prisma/client": "6.15.0",
     "prisma": "^6.15.0"
-  },
-  "devDependencies": {
-    "@repo/typescript-config": "workspace:*"
   }
 }

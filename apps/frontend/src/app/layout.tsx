@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 import StoreProvider from "./StoreProvider"
 import { fontVariables } from "./fonts";
+import { SocketProvider } from "@/contexts/SocketContext";
 
 export const metadata: Metadata = {
   title: "Collaborative Canvas",
@@ -19,7 +20,9 @@ export default function RootLayout({
         className={`${fontVariables} antialiased`}
       >
         <StoreProvider>
-          {children}
+          <SocketProvider>
+            {children}
+          </SocketProvider>
         </StoreProvider>
       </body>
     </html>

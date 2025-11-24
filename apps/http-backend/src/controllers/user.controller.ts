@@ -78,7 +78,7 @@ export async function registerUser(req: Request, res: Response){
 
 export async function loginUser(req: Request, res: Response){
   try {
-    const {email, password} = req.body;
+    const { email, password } = req.body;
 
     /* Input Validation */
     loginSchema.parse({
