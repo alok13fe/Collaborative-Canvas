@@ -19,6 +19,6 @@ RUN pnpm install
 RUN pnpm run db:generate
 RUN pnpm build
 
-EXPOSE 1234
+EXPOSE 8080
 
 CMD ["pnpm", "run", "start:ws-backend"]
